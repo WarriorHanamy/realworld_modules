@@ -1,0 +1,10 @@
+# Fitted Thrust Model Parameters
+# Formula: F = K1 * Voltage^K2 * (K3 * u^2 + (1-K3) * u)
+K1 = 0.5995638949
+K2 = 1.8872354361
+K3 = 0.7658696742
+
+# Metrics
+MSE = 0.0141350792
+RMSE = 0.1188910390
+MAPE = 0.5589018740

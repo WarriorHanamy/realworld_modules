@@ -1,4 +1,4 @@
-ulg_file: zuanfeng_ulgs/3-22_830g_hover.ulg
+ulg_file: zuanfeng_ulgs/3-22_830g+800g_hover.ulg
 sample_window: 5
 
 pipeline:
@@ -18,7 +18,7 @@ pipeline:
 
   - type: trim_filter
     config:
-      trim_start_samples: 50
+      trim_start_samples: 200
       trim_end_samples: 70
 
 topics:
@@ -31,3 +31,16 @@ topics:
   battery_status:
     fields:
       - voltage_v
+
+correlation:
+  enabled: true
+  thrust:
+    topic: vehicle_thrust_setpoint
+    field: xyz[2]
+  acceleration:
+    topic: vehicle_acceleration
+    field: xyz[2]
+  voltage:
+    topic: battery_status
+    field: voltage_v
+  window_size: 50

@@ -4,3 +4,9 @@ logs/tmux/*.log
 .st*/
 build/
 devel/
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.csv
+*.png
