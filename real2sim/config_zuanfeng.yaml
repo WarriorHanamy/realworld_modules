@@ -1,0 +1,33 @@
+ulg_file: zuanfeng_ulgs/3-22_830g_hover.ulg
+sample_window: 5
+
+pipeline:
+  - type: range_filter
+    config:
+      topic: vehicle_acceleration
+      field: xyz[2]
+      center: -9.8
+      tolerance: 0.2
+
+  - type: stability_filter
+    config:
+      topic: vehicle_thrust_setpoint
+      field: xyz[2]
+      window_size: 50
+      max_change: 0.01
+
+  - type: trim_filter
+    config:
+      trim_start_samples: 50
+      trim_end_samples: 70
+
+topics:
+  vehicle_thrust_setpoint:
+    fields:
+      - xyz[2]
+  vehicle_acceleration:
+    fields:
+      - xyz[2]
+  battery_status:
+    fields:
+      - voltage_v
