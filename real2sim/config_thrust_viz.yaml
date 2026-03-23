@@ -1,0 +1,27 @@
+ulg_file: reference.ulg
+
+thr_map: thr_map.yaml
+
+plot_range:
+  start: 400
+  end: 1000
+
+show_throttle_voltage: false
+
+calibration_range:
+  throttle_min: 0.1958
+  throttle_max: 0.3367
+  voltage_min: 14.60
+  voltage_max: 16.09
+
+thrust_viz:
+  thrust:
+    topic: vehicle_thrust_setpoint
+    field: xyz[2]
+  acceleration:
+    topic: vehicle_acceleration
+    field: xyz[2]
+  voltage:
+    topic: battery_status
+    field: voltage_filtered_v
+  mass_kg: 0.83
