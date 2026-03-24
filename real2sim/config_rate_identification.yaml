@@ -1,0 +1,43 @@
+ulg_files:
+  - identification_ulgs/3-23_pitch.ulg
+  - identification_ulgs/3-23_roll.ulg
+
+sample_rate_hz: 250
+
+maneuver_detection:
+  threshold_rad: 0.05
+  min_duration_s: 0.3
+  padding_samples: 10
+
+topics:
+  input:
+    topic: vehicle_rates_setpoint
+    fields:
+      - roll
+      - pitch
+      - yaw
+  output:
+    topic: vehicle_angular_velocity
+    fields:
+      - xyz[0]
+      - xyz[1]
+      - xyz[2]
+
+identification:
+  min_maneuver_samples: 100
+  bandwidth_hz: 25.0
+  axes:
+    - name: roll
+      input_field: roll
+      output_field: xyz[0]
+    - name: pitch
+      input_field: pitch
+      output_field: xyz[1]
+  try_orders:
+    - 1
+    - 2
+
+output:
+  results_dir: results
+  save_plots: true
+  save_params: true
