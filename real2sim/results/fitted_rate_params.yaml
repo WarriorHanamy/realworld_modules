@@ -1,100 +1,268 @@
-3-23_pitch:
+3-25_pitch:
   pitch:
     best_order: 2
-    correlation: 0.9954592753663586
+    correlation: 0.9852750468130371
     models:
-      1-order:
+      IIR-1:
+        model_type: iir_delay
         theta:
-        - -0.7768604734736214
-        - 0.24589568249099797
-        transfer_function: G(z) = (0.245896 z^-1) / (1 + -0.776860 z^-1)
-        difference_equation: y[k] = 0.776860 y[k-1] + 0.245896 u[k-1]
-        fit_percent: 92.25669220159067
-        mse: 0.006578453845701754
-        gain: 1.0034046043818448
+        - -0.8255453197070425
+        - 0.17981125758183567
+        transfer_function: H(z) = z^-2 * (0.179811 z^-2) / (1 + -0.825545 z^-1)
+        difference_equation: y[k] = 0.825545 y[k-1] + 0.179811 u[k-2]
+        fit_percent: 89.54867777188039
+        mse: 0.001448684549033355
+        gain: 1.0044668383826407
         delay_ms: 0.0
-        poles:
-        - !!python/complex '0.7768604734736214'
         stable: true
+        delay_samples: 2
+        poles:
+        - !!python/complex '0.8255453197070425'
         frequency_response:
-          worst_relative_error_db: -29.84685147852423
-          worst_relative_error_freq_hz: 3.906250000009104
-          worst_phase_bias_deg: -39.830267392988134
-          worst_phase_bias_freq_hz: 14.64843750003414
+          worst_relative_error_db: -28.359725203541185
+          worst_relative_error_freq_hz: 2.877697841729236
+          worst_phase_bias_deg: -44.13547659655711
+          worst_phase_bias_freq_hz: 20.14388489210465
           bandwidth_hz: 25.0
           coherence_threshold: 0.6
-      2-order:
+      IIR-2:
+        model_type: iir_delay
         theta:
-        - -1.600695972291327
-        - 0.6136212804460421
-        - 0.36453309056821576
-        - -0.35018257083495347
-        transfer_function: G(z) = (0.364533 z^-1 + -0.350183 z^-2) / (1 + -1.600696
-          z^-1 + 0.613621 z^-2)
-        difference_equation: y[k] = 1.600696 y[k-1] + -0.613621 y[k-2] + 0.364533
-          u[k-1] + -0.350183 u[k-2]
-        fit_percent: 92.404016488349
-        mse: 0.006330511658104295
-        gain: 1.0032764783267527
+        - -1.0726977411723801
+        - 0.2680181721279202
+        - 0.12577915540961815
+        - 0.07459821070512561
+        transfer_function: H(z) = z^-3 * (0.125779 z^-3 + 0.074598 z^-4) / (1 + -1.072698
+          z^-1 + 0.268018 z^-2)
+        difference_equation: y[k] = 1.072698 y[k-1] + -0.268018 y[k-2] + 0.125779
+          u[k-3] + 0.074598 u[k-4]
+        fit_percent: 90.23076331182656
+        mse: 0.001270326232351268
+        gain: 1.005454245874352
         delay_ms: 0.0
-        poles:
-        - !!python/complex '0.9644687297504164'
-        - !!python/complex '0.6362272425409106'
         stable: true
+        delay_samples: 3
+        poles:
+        - !!python/complex '0.676534243757436'
+        - !!python/complex '0.3961634974149441'
         frequency_response:
-          worst_relative_error_db: -32.64443892783016
-          worst_relative_error_freq_hz: 2.929687500006828
-          worst_phase_bias_deg: -55.36731056326457
-          worst_phase_bias_freq_hz: 14.64843750003414
+          worst_relative_error_db: -30.369167172804307
+          worst_relative_error_freq_hz: 2.8985507246403173
+          worst_phase_bias_deg: -9.820609771500187
+          worst_phase_bias_freq_hz: 17.391304347841903
           bandwidth_hz: 25.0
           coherence_threshold: 0.6
-3-23_roll:
+3-25_roll:
   roll:
     best_order: 2
-    correlation: 0.9915970025064514
+    correlation: 0.9891450488149981
     models:
-      1-order:
+      IIR-1:
+        model_type: iir_delay
         theta:
-        - -0.7260973058535634
-        - 0.2739931108489507
-        transfer_function: G(z) = (0.273993 z^-1) / (1 + -0.726097 z^-1)
-        difference_equation: y[k] = 0.726097 y[k-1] + 0.273993 u[k-1]
-        fit_percent: 81.12493084693433
-        mse: 0.012932720605778512
-        gain: 1.0305290908834768
-        delay_ms: 0.0
-        poles:
-        - !!python/complex '0.7260973058535634'
+        - -0.8388886296889143
+        - 0.1640439647731905
+        transfer_function: H(z) = z^-1 * (0.164044 z^-1) / (1 + -0.838889 z^-1)
+        difference_equation: y[k] = 0.838889 y[k-1] + 0.164044 u[k-1]
+        fit_percent: 92.03752991364962
+        mse: 0.013428612956375933
+        gain: 1.0026565878246545
+        delay_ms: 2.4999999999977263
         stable: true
+        delay_samples: 1
+        poles:
+        - !!python/complex '0.8388886296889143'
         frequency_response:
-          worst_relative_error_db: -35.567148421514844
-          worst_relative_error_freq_hz: 1.5337423312891936
-          worst_phase_bias_deg: -9.441187333077636
-          worst_phase_bias_freq_hz: 12.269938650313549
+          worst_relative_error_db: -31.079311332843773
+          worst_relative_error_freq_hz: 1.562500000001421
+          worst_phase_bias_deg: -60.287081670716844
+          worst_phase_bias_freq_hz: 21.875000000019895
           bandwidth_hz: 25.0
           coherence_threshold: 0.6
-      2-order:
+      IIR-2:
+        model_type: iir_delay
         theta:
-        - -1.4982458070189244
-        - 0.7719972572523588
-        - -0.48622058407742935
-        - 0.7591138528047761
-        transfer_function: G(z) = (-0.486221 z^-1 + 0.759114 z^-2) / (1 + -1.498246
-          z^-1 + 0.771997 z^-2)
-        difference_equation: y[k] = 1.498246 y[k-1] + -0.771997 y[k-2] + -0.486221
-          u[k-1] + 0.759114 u[k-2]
-        fit_percent: 81.22480297097653
-        mse: 0.012796222969819592
-        gain: 1.0302250795380827
+        - -1.7024990616870153
+        - 0.820776085158574
+        - 0.08320770265220379
+        - 0.0356523787768276
+        transfer_function: H(z) = z^-4 * (0.083208 z^-4 + 0.035652 z^-5) / (1 + -1.702499
+          z^-1 + 0.820776 z^-2)
+        difference_equation: y[k] = 1.702499 y[k-1] + -0.820776 y[k-2] + 0.083208
+          u[k-4] + 0.035652 u[k-5]
+        fit_percent: 95.4123800653818
+        mse: 0.0044705487385758545
+        gain: 1.0015353191008975
         delay_ms: 0.0
-        poles:
-        - !!python/complex '0.7491229035094622+0.4591428238466891j'
-        - !!python/complex '0.7491229035094622-0.4591428238466891j'
         stable: true
+        delay_samples: 4
+        poles:
+        - !!python/complex '0.8512495308435077+0.31008115292175065j'
+        - !!python/complex '0.8512495308435077-0.31008115292175065j'
         frequency_response:
-          worst_relative_error_db: -44.07288579197573
-          worst_relative_error_freq_hz: 1.5337423312891936
-          worst_phase_bias_deg: -3.5781343799737044
-          worst_phase_bias_freq_hz: 6.134969325156774
+          worst_relative_error_db: -41.421575213273094
+          worst_relative_error_freq_hz: 1.562500000001421
+          worst_phase_bias_deg: 21.98464115578426
+          worst_phase_bias_freq_hz: 18.750000000017053
+          bandwidth_hz: 25.0
+          coherence_threshold: 0.6
+3-25_yaw:
+  roll:
+    best_order: 2
+    correlation: 0.9835429842660737
+    models:
+      IIR-1:
+        model_type: iir_delay
+        theta:
+        - -0.8251203876579879
+        - 0.17771560929759572
+        transfer_function: H(z) = z^-1 * (0.177716 z^-1) / (1 + -0.825120 z^-1)
+        difference_equation: y[k] = 0.825120 y[k-1] + 0.177716 u[k-1]
+        fit_percent: 90.85821677622648
+        mse: 0.007466973114084231
+        gain: 1.006016651990966
+        delay_ms: 2.4999999999977263
+        stable: true
+        delay_samples: 1
+        poles:
+        - !!python/complex '0.8251203876579879'
+        frequency_response:
+          worst_relative_error_db: -29.612967010088514
+          worst_relative_error_freq_hz: 4.444444444448487
+          worst_phase_bias_deg: -16.049427999009197
+          worst_phase_bias_freq_hz: 17.777777777793947
+          bandwidth_hz: 25.0
+          coherence_threshold: 0.6
+      IIR-2:
+        model_type: iir_delay
+        theta:
+        - -1.6710022637760527
+        - 0.8099415987277686
+        - 0.08981812077838217
+        - 0.04890081977825234
+        transfer_function: H(z) = z^-4 * (0.089818 z^-4 + 0.048901 z^-5) / (1 + -1.671002
+          z^-1 + 0.809942 z^-2)
+        difference_equation: y[k] = 1.671002 y[k-1] + -0.809942 y[k-2] + 0.089818
+          u[k-4] + 0.048901 u[k-5]
+        fit_percent: 93.19173990089554
+        mse: 0.004182979981852482
+        gain: 1.0020041063576426
+        delay_ms: 0.0
+        stable: true
+        delay_samples: 4
+        poles:
+        - !!python/complex '0.8355011318880263+0.33448386708718175j'
+        - !!python/complex '0.8355011318880263-0.33448386708718175j'
+        frequency_response:
+          worst_relative_error_db: -34.30295647960109
+          worst_relative_error_freq_hz: 4.494382022475998
+          worst_phase_bias_deg: 14.154852815521025
+          worst_phase_bias_freq_hz: 17.97752808990399
+          bandwidth_hz: 25.0
+          coherence_threshold: 0.6
+  pitch:
+    best_order: 2
+    correlation: 0.9657751258175579
+    models:
+      IIR-1:
+        model_type: iir_delay
+        theta:
+        - -0.8025513822331208
+        - 0.2005562631472408
+        transfer_function: H(z) = z^-3 * (0.200556 z^-3) / (1 + -0.802551 z^-1)
+        difference_equation: y[k] = 0.802551 y[k-1] + 0.200556 u[k-3]
+        fit_percent: 86.04486317099001
+        mse: 0.0026566590776708845
+        gain: 1.0095037175441166
+        delay_ms: 2.5000000000545697
+        stable: true
+        delay_samples: 3
+        poles:
+        - !!python/complex '0.8025513822331208'
+        frequency_response:
+          worst_relative_error_db: -23.901270590347302
+          worst_relative_error_freq_hz: 2.7586206895949577
+          worst_phase_bias_deg: -40.878937181755475
+          worst_phase_bias_freq_hz: 19.310344827164705
+          bandwidth_hz: 25.0
+          coherence_threshold: 0.6
+      IIR-2:
+        model_type: iir_delay
+        theta:
+        - -1.4474164277755632
+        - 0.6082030300015258
+        - 0.1360698794848536
+        - 0.02523201558315897
+        transfer_function: H(z) = z^-4 * (0.136070 z^-4 + 0.025232 z^-5) / (1 + -1.447416
+          z^-1 + 0.608203 z^-2)
+        difference_equation: y[k] = 1.447416 y[k-1] + -0.608203 y[k-2] + 0.136070
+          u[k-4] + 0.025232 u[k-5]
+        fit_percent: 89.79453473546766
+        mse: 0.0014241828304247372
+        gain: 1.0023975371469407
+        delay_ms: 0.0
+        stable: true
+        delay_samples: 4
+        poles:
+        - !!python/complex '0.7237082138877815+0.29060187740770493j'
+        - !!python/complex '0.7237082138877815-0.29060187740770493j'
+        frequency_response:
+          worst_relative_error_db: -36.61154301203424
+          worst_relative_error_freq_hz: 2.7586206895949577
+          worst_phase_bias_deg: -5.624214473314794
+          worst_phase_bias_freq_hz: 16.551724137569746
+          bandwidth_hz: 25.0
+          coherence_threshold: 0.6
+  yaw:
+    best_order: 1
+    correlation: 0.9698757413366286
+    models:
+      IIR-1:
+        model_type: iir_delay
+        theta:
+        - -0.8185957081469094
+        - 0.1733717788783198
+        transfer_function: H(z) = z^-4 * (0.173372 z^-4) / (1 + -0.818596 z^-1)
+        difference_equation: y[k] = 0.818596 y[k-1] + 0.173372 u[k-4]
+        fit_percent: 82.20784751527302
+        mse: 0.012036236426861364
+        gain: 1.0278514720111682
+        delay_ms: 0.0
+        stable: true
+        delay_samples: 4
+        poles:
+        - !!python/complex '0.8185957081469094'
+        frequency_response:
+          worst_relative_error_db: -17.685596313159397
+          worst_relative_error_freq_hz: 6.451612903231674
+          worst_phase_bias_deg: 25.36033788127608
+          worst_phase_bias_freq_hz: 19.354838709695024
+          bandwidth_hz: 25.0
+          coherence_threshold: 0.6
+      IIR-2:
+        model_type: iir_delay
+        theta:
+        - -1.3882464908303256
+        - 0.4838494547587945
+        - -0.03269851720499592
+        - 0.12398312550452581
+        transfer_function: H(z) = z^-2 * (-0.032699 z^-2 + 0.123983 z^-3) / (1 + -1.388246
+          z^-1 + 0.483849 z^-2)
+        difference_equation: y[k] = 1.388246 y[k-1] + -0.483849 y[k-2] + -0.032699
+          u[k-2] + 0.123983 u[k-3]
+        fit_percent: 80.55928072508314
+        mse: 0.014518790980582112
+        gain: 1.0221348461465567
+        delay_ms: 2.499999999940883
+        stable: true
+        delay_samples: 2
+        poles:
+        - !!python/complex '0.6941232454151627+0.04519264246662451j'
+        - !!python/complex '0.6941232454151627-0.04519264246662451j'
+        frequency_response:
+          worst_relative_error_db: -17.1259756378006
+          worst_relative_error_freq_hz: 6.349206349356488
+          worst_phase_bias_deg: 8.854365228756166
+          worst_phase_bias_freq_hz: 12.698412698712977
           bandwidth_hz: 25.0
           coherence_threshold: 0.6

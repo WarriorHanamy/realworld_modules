@@ -36,6 +36,102 @@ class FitResult:
     gain: float
     delay_sec: float
     freq_response: dict[str, Any] | None
+    delay_samples: int = 0
+    model_type: str = "oe"
+
+
+def create_fir_fit_result(
+    b_coeffs: np.ndarray,
+    y_hat: np.ndarray,
+    u: np.ndarray,
+    y: np.ndarray,
+    delay: int,
+    ts: np.ndarray | None,
+    bandwidth_hz: float,
+) -> FitResult:
+    y_centered = y - np.mean(y)
+    valid_start = delay + len(b_coeffs) - 1
+    y_valid = y_centered[valid_start:]
+    y_hat_valid = y_hat[valid_start:]
+    u_valid = u[valid_start:]
+
+    fit_pct = fit_percent(y_valid, y_hat_valid)
+    mse_val = mse(y_valid, y_hat_valid)
+
+    gain, delay_sec = 0.0, 0.0
+    freq_response = None
+    if ts is not None:
+        ts_valid = ts[valid_start:]
+        gain, delay_sec = estimate_gain_and_delay(y_hat_valid, y_valid, ts_valid)
+        freq_response = compute_frequency_response(
+            u_valid, y_valid, y_hat_valid, ts_valid, bandwidth_hz=bandwidth_hz
+        )
+
+    return FitResult(
+        order=len(b_coeffs),
+        theta=b_coeffs,
+        y_hat=y_hat,
+        poles=np.array([]),
+        stable=True,
+        fit_pct=fit_pct,
+        mse_val=mse_val,
+        success=True,
+        message="FIR fit",
+        gain=gain,
+        delay_sec=delay_sec,
+        freq_response=freq_response,
+        delay_samples=delay,
+        model_type="fir",
+    )
+
+
+def create_iir_fit_result(
+    theta: np.ndarray,
+    y_hat: np.ndarray,
+    u: np.ndarray,
+    y: np.ndarray,
+    delay: int,
+    order: int,
+    ts: np.ndarray | None,
+    bandwidth_hz: float,
+) -> FitResult:
+    a_coeffs = theta[:order]
+    poles = np.roots([1.0] + list(a_coeffs))
+    stable = bool(np.all(np.abs(poles) < 1.0))
+
+    valid_start = delay + order
+    y_valid = y[valid_start:]
+    y_hat_valid = y_hat[valid_start:]
+    u_valid = u[valid_start:]
+
+    fit_pct = fit_percent(y_valid, y_hat_valid)
+    mse_val = mse(y_valid, y_hat_valid)
+
+    gain, delay_sec = 0.0, 0.0
+    freq_response = None
+    if ts is not None:
+        ts_valid = ts[valid_start:]
+        gain, delay_sec = estimate_gain_and_delay(y_hat_valid, y_valid, ts_valid)
+        freq_response = compute_frequency_response(
+            u_valid, y_valid, y_hat_valid, ts_valid, bandwidth_hz=bandwidth_hz
+        )
+
+    return FitResult(
+        order=order,
+        theta=theta,
+        y_hat=y_hat,
+        poles=poles,
+        stable=stable,
+        fit_pct=fit_pct,
+        mse_val=mse_val,
+        success=True,
+        message="IIR fit with delay",
+        gain=gain,
+        delay_sec=delay_sec,
+        freq_response=freq_response,
+        delay_samples=delay,
+        model_type="iir_delay",
+    )
 
 
 def load_config(config_path: str) -> dict:
@@ -113,22 +209,67 @@ def extract_segment(
     )
 
 
-def simulate_oe_first_order(u: np.ndarray, theta: np.ndarray) -> np.ndarray:
-    a1, b1 = theta
+def simulate_iir_with_delay(
+    u: np.ndarray, theta: np.ndarray, delay: int, y_init: float | None = None
+) -> np.ndarray:
+    a_coeffs = theta[: len(theta) // 2]
+    b_coeffs = theta[len(theta) // 2 :]
+    order = len(a_coeffs)
+
     y_hat = np.zeros(len(u), dtype=float)
-    for k in range(1, len(u)):
-        y_hat[k] = -a1 * y_hat[k - 1] + b1 * u[k - 1]
+    if y_init is not None:
+        y_hat[: delay + order] = y_init
+
+    for k in range(delay + order, len(u)):
+        y_hat[k] = sum(-a_coeffs[i] * y_hat[k - 1 - i] for i in range(order))
+        y_hat[k] += sum(b_coeffs[i] * u[k - delay - i] for i in range(order))
     return y_hat
 
 
-def simulate_oe_second_order(u: np.ndarray, theta: np.ndarray) -> np.ndarray:
-    a1, a2, b1, b2 = theta
-    y_hat = np.zeros(len(u), dtype=float)
-    for k in range(2, len(u)):
-        y_hat[k] = (
-            -a1 * y_hat[k - 1] - a2 * y_hat[k - 2] + b1 * u[k - 1] + b2 * u[k - 2]
-        )
-    return y_hat
+def fit_iir_with_delay(
+    u: np.ndarray, y: np.ndarray, order: int, max_delay: int = 4
+) -> tuple[np.ndarray | None, int, np.ndarray | None, float]:
+    y_mean = np.mean(y)
+    best_theta = None
+    best_delay = 0
+    best_y_hat = None
+    best_fit = -1.0
+
+    for delay in range(max_delay + 1):
+        X_rows = []
+        y_vals = []
+        for k in range(delay + order, len(u)):
+            row = [-y[k - 1 - i] for i in range(order)] + [
+                u[k - delay - i] for i in range(order)
+            ]
+            X_rows.append(row)
+            y_vals.append(y[k])
+
+        if len(X_rows) < 2 * order:
+            continue
+
+        X = np.array(X_rows)
+        y_vec = np.array(y_vals)
+
+        theta, _, _, _ = np.linalg.lstsq(X, y_vec, rcond=None)
+
+        a_coeffs = theta[:order]
+        poles = np.roots([1.0] + list(a_coeffs))
+        if not np.all(np.abs(poles) < 1.0):
+            continue
+
+        y_hat = simulate_iir_with_delay(u, theta, delay, y_init=y_mean)
+
+        valid_start = delay + order
+        fit = fit_percent(y[valid_start:], y_hat[valid_start:])
+
+        if fit > best_fit:
+            best_fit = fit
+            best_theta = theta
+            best_delay = delay
+            best_y_hat = y_hat
+
+    return best_theta, best_delay, best_y_hat, best_fit
 
 
 def residual_first_order(theta: np.ndarray, u: np.ndarray, y: np.ndarray) -> np.ndarray:
@@ -141,12 +282,20 @@ def residual_second_order(
     return simulate_oe_second_order(u, theta) - y
 
 
+def residual_third_order(theta: np.ndarray, u: np.ndarray, y: np.ndarray) -> np.ndarray:
+    return simulate_oe_third_order(u, theta) - y
+
+
 def poles_first_order(theta: np.ndarray) -> np.ndarray:
     return np.array([-theta[0]])
 
 
 def poles_second_order(theta: np.ndarray) -> np.ndarray:
     return np.roots([1.0, theta[0], theta[1]])
+
+
+def poles_third_order(theta: np.ndarray) -> np.ndarray:
+    return np.roots([1.0, theta[0], theta[1], theta[2]])
 
 
 def is_stable(poles: np.ndarray) -> bool:
@@ -292,7 +441,7 @@ def fit_oe_model(
         theta = result.x
         y_hat = simulate_oe_first_order(u, theta)
         poles = poles_first_order(theta)
-    else:
+    elif order == 2:
         theta0 = np.array([-1.0, 0.3, 0.5, 0.1])
         bounds = ([-2.0, -2.0, -2.0, -2.0], [2.0, 2.0, 2.0, 2.0])
         result = least_squares(
@@ -306,6 +455,20 @@ def fit_oe_model(
         theta = result.x
         y_hat = simulate_oe_second_order(u, theta)
         poles = poles_second_order(theta)
+    else:
+        theta0 = np.array([-1.5, 0.5, -0.1, 0.5, 0.2, 0.05])
+        bounds = ([-2.0, -2.0, -2.0, -2.0, -2.0, -2.0], [2.0, 2.0, 2.0, 2.0, 2.0, 2.0])
+        result = least_squares(
+            residual_third_order,
+            x0=theta0,
+            args=(u, y_centered),
+            method="trf",
+            bounds=bounds,
+            max_nfev=5000,
+        )
+        theta = result.x
+        y_hat = simulate_oe_third_order(u, theta)
+        poles = poles_third_order(theta)
 
     gain, delay_sec = (0.0, 0.0)
     freq_response = None
@@ -331,22 +494,145 @@ def fit_oe_model(
     )
 
 
+def simulate_oe_with_delay(
+    u: np.ndarray, theta: np.ndarray, order: int, delay_samples: int
+) -> np.ndarray:
+    u_shifted = (
+        np.roll(u, -delay_samples) if delay_samples < 0 else np.roll(u, delay_samples)
+    )
+    if delay_samples > 0:
+        u_shifted[:delay_samples] = 0
+    elif delay_samples < 0:
+        u_shifted[delay_samples:] = 0
+
+    if order == 1:
+        return simulate_oe_first_order(u_shifted, theta)
+    elif order == 2:
+        return simulate_oe_second_order(u_shifted, theta)
+    else:
+        return simulate_oe_third_order(u_shifted, theta)
+
+
+def fit_oe_model_with_delay(
+    u: np.ndarray,
+    y: np.ndarray,
+    order: int,
+    ts: np.ndarray | None = None,
+    bandwidth_hz: float = 25.0,
+    max_delay_ms: float = 100.0,
+) -> tuple[FitResult, int]:
+    u = np.asarray(u, dtype=float).ravel()
+    y = np.asarray(y, dtype=float).ravel()
+    y_centered = y - np.mean(y)
+
+    if ts is None or len(ts) < 2:
+        dt = 1.0 / 400.0
+    else:
+        dt = float(np.median(np.diff(ts)))
+
+    max_delay_samples = int(max_delay_ms / 1000.0 / dt)
+
+    best_fit = -1.0
+    best_result = None
+    best_delay_samples = 0
+
+    for delay_samples in range(
+        0, max_delay_samples + 1, max(1, max_delay_samples // 10)
+    ):
+        u_shifted = np.roll(u, delay_samples)
+        u_shifted[:delay_samples] = 0
+
+        result = fit_oe_model(
+            u_shifted, y_centered, order, ts=None, bandwidth_hz=bandwidth_hz
+        )
+        if result.fit_pct > best_fit:
+            best_fit = result.fit_pct
+            best_result = result
+            best_delay_samples = delay_samples
+
+    if ts is not None and best_result is not None:
+        gain, delay_sec = estimate_gain_and_delay(best_result.y_hat, y_centered, ts)
+        freq_response = compute_frequency_response(
+            u, y_centered, best_result.y_hat, ts, bandwidth_hz=bandwidth_hz
+        )
+        best_result = FitResult(
+            order=best_result.order,
+            theta=best_result.theta,
+            y_hat=best_result.y_hat,
+            poles=best_result.poles,
+            stable=best_result.stable,
+            fit_pct=best_result.fit_pct,
+            mse_val=best_result.mse_val,
+            success=best_result.success,
+            message=best_result.message,
+            gain=gain,
+            delay_sec=delay_sec,
+            freq_response=freq_response,
+        )
+
+    return best_result, best_delay_samples
+
+
 def format_transfer_function(result: FitResult) -> str:
+    model_type = getattr(result, "model_type", "oe")
+    delay = getattr(result, "delay_samples", 0)
+
+    if model_type == "fir":
+        b_coeffs = result.theta
+        terms = [f"{b:.6f} z^-{delay + i}" for i, b in enumerate(b_coeffs)]
+        return f"H(z) = {' + '.join(terms)}"
+
+    if model_type == "iir_delay":
+        order = result.order
+        a_coeffs = result.theta[:order]
+        b_coeffs = result.theta[order:]
+        num_terms = [f"{b:.6f} z^-{delay + i}" for i, b in enumerate(b_coeffs)]
+        den_terms = ["1"] + [f"{a:.6f} z^-{i + 1}" for i, a in enumerate(a_coeffs)]
+        return (
+            f"H(z) = z^-{delay} * ({' + '.join(num_terms)}) / ({' + '.join(den_terms)})"
+        )
+
     if result.order == 1:
         a1, b1 = result.theta
         return f"G(z) = ({b1:.6f} z^-1) / (1 + {a1:.6f} z^-1)"
-    a1, a2, b1, b2 = result.theta
+    if result.order == 2:
+        a1, a2, b1, b2 = result.theta
+        return f"G(z) = ({b1:.6f} z^-1 + {b2:.6f} z^-2) / (1 + {a1:.6f} z^-1 + {a2:.6f} z^-2)"
+    a1, a2, a3, b1, b2, b3 = result.theta
     return (
-        f"G(z) = ({b1:.6f} z^-1 + {b2:.6f} z^-2) / (1 + {a1:.6f} z^-1 + {a2:.6f} z^-2)"
+        f"G(z) = ({b1:.6f} z^-1 + {b2:.6f} z^-2 + {b3:.6f} z^-3) / "
+        f"(1 + {a1:.6f} z^-1 + {a2:.6f} z^-2 + {a3:.6f} z^-3)"
     )
 
 
 def format_difference_equation(result: FitResult) -> str:
+    model_type = getattr(result, "model_type", "oe")
+    delay = getattr(result, "delay_samples", 0)
+
+    if model_type == "fir":
+        b_coeffs = result.theta
+        terms = [f"{b:.6f} u[k-{i + delay}]" for i, b in enumerate(b_coeffs)]
+        return f"y[k] = {' + '.join(terms)}"
+
+    if model_type == "iir_delay":
+        order = result.order
+        a_coeffs = result.theta[:order]
+        b_coeffs = result.theta[order:]
+        y_terms = [f"{-a:.6f} y[k-{i + 1}]" for i, a in enumerate(a_coeffs)]
+        u_terms = [f"{b:.6f} u[k-{delay + i}]" for i, b in enumerate(b_coeffs)]
+        return f"y[k] = {' + '.join(y_terms)} + {' + '.join(u_terms)}"
+
     if result.order == 1:
         a1, b1 = result.theta
         return f"y[k] = {-a1:.6f} y[k-1] + {b1:.6f} u[k-1]"
-    a1, a2, b1, b2 = result.theta
-    return f"y[k] = {-a1:.6f} y[k-1] + {-a2:.6f} y[k-2] + {b1:.6f} u[k-1] + {b2:.6f} u[k-2]"
+    if result.order == 2:
+        a1, a2, b1, b2 = result.theta
+        return f"y[k] = {-a1:.6f} y[k-1] + {-a2:.6f} y[k-2] + {b1:.6f} u[k-1] + {b2:.6f} u[k-2]"
+    a1, a2, a3, b1, b2, b3 = result.theta
+    return (
+        f"y[k] = {-a1:.6f} y[k-1] + {-a2:.6f} y[k-2] + {-a3:.6f} y[k-3] + "
+        f"{b1:.6f} u[k-1] + {b2:.6f} u[k-2] + {b3:.6f} u[k-3]"
+    )
 
 
 def infer_primary_axis(ulg_name: str) -> str | None:
@@ -374,6 +660,18 @@ def process_ulog_file(
 
     ts_input = input_topic.data["timestamp"].astype(float) / 1e6
     ts_output = output_topic.data["timestamp"].astype(float) / 1e6
+
+    dt_output = np.diff(ts_output)
+    actual_rate_output = 1.0 / np.median(dt_output) if len(dt_output) > 0 else 0.0
+    rate_ratio = actual_rate_output / sample_rate
+    print(
+        f"  Output topic sampling: actual={actual_rate_output:.1f}Hz, "
+        f"configured={sample_rate:.1f}Hz, ratio={rate_ratio:.3f}"
+    )
+    if rate_ratio < 0.8 or rate_ratio > 1.2:
+        print(
+            f"  WARNING: Actual sampling rate differs significantly from configured rate!"
+        )
     ts_target = np.arange(
         max(ts_input[0], ts_output[0]),
         min(ts_input[-1], ts_output[-1]),
@@ -410,57 +708,84 @@ def process_ulog_file(
             print(f"  [{axis_name}] No maneuver segments found, skipping")
             continue
 
-        segment = max(segments, key=lambda s: s[1] - s[0])
-        ts_seg, u_seg, y_seg = extract_segment(ts_target, u, y, segment)
-        print(
-            f"  [{axis_name}] Selected segment: {segment[0]}-{segment[1]} ({len(ts_seg)} samples)"
-        )
-
         min_samples = int(ident_cfg.get("min_maneuver_samples", 100))
-        if len(ts_seg) < min_samples:
-            print(
-                f"  [{axis_name}] Insufficient maneuver samples ({len(ts_seg)} < {min_samples}), skipping"
-            )
+        valid_segments = [s for s in segments if (s[1] - s[0] + 1) >= min_samples]
+        if not valid_segments:
+            print(f"  [{axis_name}] No segments with sufficient samples, skipping")
             continue
 
-        corr = 0.0
-        if np.std(u_seg) > 1e-12 and np.std(y_seg) > 1e-12:
-            corr = float(
-                np.corrcoef(u_seg - np.mean(u_seg), y_seg - np.mean(y_seg))[0, 1]
+        best_segment = None
+        best_fit_pct = -1.0
+        best_axis_result = None
+        order_to_try = min(ident_cfg["try_orders"])
+        max_delay = int(ident_cfg.get("max_delay", 4))
+
+        print(f"  [{axis_name}] Evaluating {len(valid_segments)} segments...")
+        for idx, segment in enumerate(valid_segments):
+            ts_seg, u_seg, y_seg = extract_segment(ts_target, u, y, segment)
+            if np.std(u_seg) < 1e-12 or np.std(y_seg) < 1e-12:
+                continue
+            theta, delay, y_hat, fit_pct = fit_iir_with_delay(
+                u_seg, y_seg, int(order_to_try), max_delay=max_delay
             )
+            if theta is not None and fit_pct > best_fit_pct:
+                best_fit_pct = fit_pct
+                best_segment = segment
+                corr = float(
+                    np.corrcoef(u_seg - np.mean(u_seg), y_seg - np.mean(y_seg))[0, 1]
+                )
+                best_axis_result = {
+                    "ts": ts_seg,
+                    "u": u_seg,
+                    "y": y_seg,
+                    "segment": segment,
+                    "correlation": corr,
+                    "fits": {},
+                }
+
+        if best_segment is None:
+            print(f"  [{axis_name}] No valid segment found after evaluation")
+            continue
+
+        ts_seg = best_axis_result["ts"]
+        u_seg = best_axis_result["u"]
+        y_seg = best_axis_result["y"]
+        print(
+            f"  [{axis_name}] Best segment: {best_segment[0]}-{best_segment[1]} "
+            f"({len(ts_seg)} samples, prelim fit={best_fit_pct:.1f}%)"
+        )
+
+        corr = best_axis_result["correlation"]
         print(f"  [{axis_name}] Input-output correlation: {corr:.3f}")
 
-        axis_result: dict[str, Any] = {
-            "ts": ts_seg,
-            "u": u_seg,
-            "y": y_seg,
-            "segment": segment,
-            "correlation": corr,
-            "fits": {},
-        }
         for order in ident_cfg["try_orders"]:
-            fit_res = fit_oe_model(
-                u_seg, y_seg, int(order), ts=ts_seg, bandwidth_hz=bandwidth_hz
+            theta, delay, y_hat, _ = fit_iir_with_delay(
+                u_seg, y_seg, int(order), max_delay=max_delay
             )
-            axis_result["fits"][int(order)] = fit_res
+            if theta is None:
+                print(f"  [{axis_name}] IIR-{order} D=? unstable, skipped")
+                continue
+            fit_res = create_iir_fit_result(
+                theta, y_hat, u_seg, y_seg, delay, int(order), ts_seg, bandwidth_hz
+            )
+            best_axis_result["fits"][int(order)] = fit_res
             fr = fit_res.freq_response or {}
             worst_rel = fr.get("worst_rel_error_db", 0.0)
             worst_phase = fr.get("worst_phase_bias_deg", 0.0)
             print(
-                f"  [{axis_name}] {order}-order: fit={fit_res.fit_pct:.1f}%, "
+                f"  [{axis_name}] IIR-{order} D={delay}: fit={fit_res.fit_pct:.1f}%, "
                 f"MSE={fit_res.mse_val:.6f}, gain={fit_res.gain:.3f}, "
-                f"delay={fit_res.delay_sec * 1000:.1f}ms, "
                 f"worst_rel={worst_rel:.2f}dB, worst_phase={worst_phase:.1f}deg"
             )
 
         best_order = max(
-            axis_result["fits"], key=lambda k: axis_result["fits"][k].fit_pct
+            best_axis_result["fits"], key=lambda k: best_axis_result["fits"][k].fit_pct
         )
-        axis_result["best_order"] = best_order
+        best_axis_result["best_order"] = best_order
         print(
-            f"  [{axis_name}] Best: {best_order}-order (fit={axis_result['fits'][best_order].fit_pct:.1f}%)"
+            f"  [{axis_name}] Best: {best_order}-order (fit={best_axis_result['fits'][best_order].fit_pct:.1f}%)"
         )
-        results[axis_name] = axis_result
+        results[axis_name] = best_axis_result
     return results
 
 
@@ -632,7 +957,9 @@ def save_params(all_results: dict[str, dict[str, Any]], output_dir: Path):
                 "models": {},
             }
             for order, fit_res in sorted(axis_data["fits"].items()):
+                model_type = getattr(fit_res, "model_type", "oe")
                 model_out: dict[str, Any] = {
+                    "model_type": model_type,
                     "theta": [float(v) for v in fit_res.theta],
                     "transfer_function": format_transfer_function(fit_res),
                     "difference_equation": format_difference_equation(fit_res),
@@ -640,9 +967,14 @@ def save_params(all_results: dict[str, dict[str, Any]], output_dir: Path):
                     "mse": float(fit_res.mse_val),
                     "gain": float(fit_res.gain),
                     "delay_ms": float(fit_res.delay_sec * 1000.0),
-                    "poles": [complex(v) for v in fit_res.poles],
                     "stable": bool(fit_res.stable),
                 }
+                if model_type in ("fir", "iir_delay"):
+                    model_out["delay_samples"] = int(
+                        getattr(fit_res, "delay_samples", 0)
+                    )
+                if model_type in ("oe", "iir_delay"):
+                    model_out["poles"] = [complex(v) for v in fit_res.poles]
                 if fit_res.freq_response is not None:
                     fr = fit_res.freq_response
                     model_out["frequency_response"] = {
@@ -657,7 +989,14 @@ def save_params(all_results: dict[str, dict[str, Any]], output_dir: Path):
                         "bandwidth_hz": float(fr["bandwidth_hz"]),
                         "coherence_threshold": float(fr["coherence_threshold"]),
                     }
-                axis_out["models"][f"{order}-order"] = model_out
+                model_key = (
+                    f"FIR-{order}taps"
+                    if model_type == "fir"
+                    else f"IIR-{order}"
+                    if model_type == "iir_delay"
+                    else f"{order}-order"
+                )
+                axis_out["models"][model_key] = model_out
             data[Path(ulg_name).stem][axis_name] = axis_out
     params_path = output_dir / "fitted_rate_params.yaml"
     with open(params_path, "w") as f:
@@ -713,8 +1052,16 @@ def main():
             for order, fit_res in sorted(axis_data["fits"].items()):
                 fr = fit_res.freq_response or {}
                 marker = " *" if order == axis_data["best_order"] else ""
+                model_type = getattr(fit_res, "model_type", "oe")
+                delay_samples = getattr(fit_res, "delay_samples", 0)
+                if model_type == "fir":
+                    model_name = f"FIR-{order}taps D={delay_samples}"
+                elif model_type == "iir_delay":
+                    model_name = f"IIR-{order} D={delay_samples}"
+                else:
+                    model_name = f"{order}-order"
                 print(
-                    f"    {order}-order{marker}: fit={fit_res.fit_pct:.1f}%, gain={fit_res.gain:.3f}, "
+                    f"    {model_name}{marker}: fit={fit_res.fit_pct:.1f}%, gain={fit_res.gain:.3f}, "
                     f"delay={fit_res.delay_sec * 1000:.1f}ms, "
                     f"worst_rel={fr.get('worst_rel_error_db', 0.0):.2f}dB@{fr.get('worst_rel_error_freq_hz', 0.0):.1f}Hz, "
                     f"worst_phase={fr.get('worst_phase_bias_deg', 0.0):.1f}deg@{fr.get('worst_phase_bias_freq_hz', 0.0):.1f}Hz"

@@ -1,8 +1,9 @@
 ulg_files:
-  - identification_ulgs/3-23_pitch.ulg
-  - identification_ulgs/3-23_roll.ulg
+  - identification_ulgs/3-25_pitch.ulg
+  - identification_ulgs/3-25_roll.ulg
+  - identification_ulgs/3-25_yaw.ulg
 
-sample_rate_hz: 250
+sample_rate_hz: 400
 
 maneuver_detection:
   threshold_rad: 0.05
@@ -26,6 +27,7 @@ topics:
 identification:
   min_maneuver_samples: 100
   bandwidth_hz: 25.0
+  max_delay: 4
   axes:
     - name: roll
       input_field: roll
@@ -33,6 +35,9 @@ identification:
     - name: pitch
       input_field: pitch
       output_field: xyz[1]
+    - name: yaw
+      input_field: yaw
+      output_field: xyz[2]
   try_orders:
     - 1
     - 2
