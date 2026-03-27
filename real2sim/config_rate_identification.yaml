@@ -32,12 +32,21 @@ identification:
     - name: roll
       input_field: roll
       output_field: xyz[0]
+      mirror: false
     - name: pitch
       input_field: pitch
       output_field: xyz[1]
+      mirror: false
     - name: yaw
       input_field: yaw
       output_field: xyz[2]
+      mirror: true
+      max_delay: 8
+      try_orders:
+        - 1
+      fixed_window_s: 2.0
+      single_window: true
+      start_index: 3800
   try_orders:
     - 1
     - 2
