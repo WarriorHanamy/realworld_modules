@@ -1,9 +1,0 @@
-<launch>
-  <arg name="input_pose" default="/mocap/pose" doc="Input mocap PoseStamped topic"/>
-  <arg name="output_rate" default="25.0" doc="Output rate in Hz"/>
-
-  <node pkg="simple_px4_odom" type="mocap_to_mavros_odom" name="mocap_to_mavros_odom" output="screen">
-    <remap from="~pose" to="$(arg input_pose)"/>
-    <param name="output_rate" value="$(arg output_rate)"/>
-  </node>
-</launch>

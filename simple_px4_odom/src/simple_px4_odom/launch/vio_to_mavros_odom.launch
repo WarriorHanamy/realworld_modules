@@ -1,9 +1,0 @@
-<launch>
-  <arg name="input_odom" default="/vins_fusion/imu_propagate" doc="Input VIO odometry topic"/>
-  <arg name="output_rate" default="50.0" doc="Output rate in Hz"/>
-
-  <node pkg="simple_px4_odom" type="vio_to_mavros_odom" name="vio_to_mavros_odom" output="screen">
-    <remap from="~odom" to="$(arg input_odom)"/>
-    <param name="output_rate" value="$(arg output_rate)"/>
-  </node>
-</launch>
