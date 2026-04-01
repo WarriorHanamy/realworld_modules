@@ -1,0 +1,6 @@
+[submodule "calibration/iKalibr"]
+	path = calibration/iKalibr
+	url = https://github.com/Unsigned-Long/iKalibr.git
+[submodule "calibration/lidar_IMU_calib"]
+	path = calibration/lidar_IMU_calib
+	url = https://github.com/APRIL-ZJU/lidar_IMU_calib.git
