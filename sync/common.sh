@@ -36,6 +36,7 @@ fn_nv_load_env() {
 
   : "${DEVICE_IP:=192.168.55.1}"
   : "${DEVICE_USER:=nv}"
+  : "${DEVICE_PASSWD:=}"
   : "${SSH_KEY:=${HOME}/.ssh/id_ed25519}"
   : "${SOURCE_FOLDER:=${HOME}/zuanfeng-deploy}"
   : "${DEVICE_TARGET_FOLDER:=/home/${DEVICE_USER}/zuanfeng-mono/zuanfeng-deploy}"
@@ -97,9 +98,31 @@ fn_nv_run_remote_bash_script() {
   fn_nv_run_remote_bash "$script"
 }
 
-fn_nv_setup_apt_sources() {
+fn_nv_run_remote_sudo_bash() {
+  local command="$1"
+  local remote_cmd
+
   fn_nv_ensure_ssh
   fn_nv_load_env
+
+  if [[ -n "${DEVICE_PASSWD}" ]]; then
+    remote_cmd="printf '%s\\n' $(printf '%q' "${DEVICE_PASSWD}") | sudo -S -p '' bash -l -c $(printf '%q' "$command")"
+  else
+    remote_cmd="sudo -n bash -l -c $(printf '%q' "$command")"
+  fi
+
+  "${SSH_CMD[@]}" "${remote_cmd}"
+}
+
+fn_nv_run_remote_sudo_bash_script() {
+  local script
+  script="$(cat)"
+  fn_nv_run_remote_sudo_bash "$script"
+}
+
+fn_nv_setup_apt_sources() {
+  fn_nv_load_env
+  fn_nv_ensure_ssh
   fn_nv_log_info "setting up apt sources on ${SSH_TARGET}"
-  "${SSH_CMD[@]}" "sudo find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|http://ports.ubuntu.com/ubuntu-ports|https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports|g' {} + && sudo find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|https://mirrors.aliyun.com/ubuntu-ports|https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports|g' {} + && sudo find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|https://download.docker.com/linux/ubuntu|https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/ubuntu|g' {} + && echo 'Acquire::ForceIPv4 \"true\";' | sudo tee /etc/apt/apt.conf.d/99force-ipv4 && echo -e 'Acquire::http::Proxy \"http://${HOST_IP}:${PROXY_PORT}/\";\nAcquire::https::Proxy \"http://${HOST_IP}:${PROXY_PORT}/\";' | sudo tee /etc/apt/apt.conf.d/99proxy && sudo apt update"
+  fn_nv_run_remote_sudo_bash "find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|http://ports.ubuntu.com/ubuntu-ports|https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports|g' {} + && find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|https://mirrors.aliyun.com/ubuntu-ports|https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports|g' {} + && find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|https://download.docker.com/linux/ubuntu|https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/ubuntu|g' {} + && printf '%s\n' 'Acquire::ForceIPv4 \"true\";' > /etc/apt/apt.conf.d/99force-ipv4 && printf 'Acquire::http::Proxy \"http://${HOST_IP}:${PROXY_PORT}/\";\nAcquire::https::Proxy \"http://${HOST_IP}:${PROXY_PORT}/\";\n' > /etc/apt/apt.conf.d/99proxy && apt update"
 }

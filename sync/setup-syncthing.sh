@@ -54,13 +54,25 @@ install_syncthing_host() {
     log_step "Installing Syncthing on host..."
     if command -v syncthing &>/dev/null; then
         log_info "Syncthing already installed: $(syncthing --version 2>&1 | head -1)"
-    else
+        return 0
+    fi
+
+    if command -v pacman &>/dev/null; then
+        if command -v yay &>/dev/null; then
+            yay -S --noconfirm syncthing
+        else
+            sudo pacman -S --noconfirm syncthing
+        fi
+    elif command -v apt &>/dev/null; then
         curl -fsSL https://syncthing.net/release-key.gpg | sudo tee /usr/share/keyrings/syncthing-archive-keyring.gpg >/dev/null
         echo "deb [signed-by=/usr/share/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing stable" | sudo tee /etc/apt/sources.list.d/syncthing.list
         sudo apt update
         sudo apt install -y syncthing
-        log_info "Syncthing installed on host"
+    else
+        log_error "Unsupported package manager. Install syncthing manually."
+        return 1
     fi
+    log_info "Syncthing installed on host"
 }
 
 install_syncthing_device() {
@@ -73,11 +85,62 @@ install_syncthing_device() {
         log_info "Syncthing already installed on device"
         return 0
     fi
-    
-    "${SSH_CMD[@]}" "curl -fsSL https://syncthing.net/release-key.gpg | sudo tee /usr/share/keyrings/syncthing-archive-keyring.gpg >/dev/null"
-    "${SSH_CMD[@]}" "echo 'deb [signed-by=/usr/share/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing stable' | sudo tee /etc/apt/sources.list.d/syncthing.list"
-    "${SSH_CMD[@]}" "sudo apt update && sudo apt install -y syncthing"
+
+    fn_nv_run_remote_sudo_bash "install -d -m 0755 /usr/share/keyrings /etc/apt/sources.list.d && curl -fsSL https://syncthing.net/release-key.gpg -o /usr/share/keyrings/syncthing-archive-keyring.gpg && printf '%s\n' 'deb [signed-by=/usr/share/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing stable' > /etc/apt/sources.list.d/syncthing.list && apt update && apt install -y syncthing"
     log_info "Syncthing installed on device"
+}
+
+ensure_device_sudo() {
+    log_step "Ensuring passwordless sudo on device..."
+    NV_SSH_EXTRA_OPTS=(-o BatchMode=yes -o ConnectTimeout=30)
+    fn_nv_reset_ssh
+    fn_nv_ensure_ssh
+
+    if "${SSH_CMD[@]}" "sudo -n true" &>/dev/null; then
+        log_info "Passwordless sudo already enabled on device"
+        return 0
+    fi
+
+    "${SCRIPT_DIR}/raise_sudoer.sh"
+
+    fn_nv_reset_ssh
+    fn_nv_ensure_ssh
+    if "${SSH_CMD[@]}" "sudo -n true" &>/dev/null; then
+        log_info "Passwordless sudo enabled on device"
+        return 0
+    fi
+
+    log_error "Failed to enable passwordless sudo on device"
+    return 1
+}
+
+ensure_device_route() {
+    log_step "Ensuring route priority to ${HOST_IP} on device..."
+    NV_SSH_EXTRA_OPTS=(-o BatchMode=yes -o ConnectTimeout=30)
+    fn_nv_reset_ssh
+    fn_nv_ensure_ssh
+
+    if "${SSH_CMD[@]}" "ip route show exact ${HOST_IP}/32" 2>/dev/null | grep -q "${HOST_IP}"; then
+        log_info "Route to ${HOST_IP} already exists on device"
+        return 0
+    fi
+
+    local iface
+    iface=$("${SSH_CMD[@]}" "ip -o link show | awk -F': ' '/l4tbr0|usb[0-9]/{print \$2}' | head -1" 2>/dev/null)
+
+    if [[ -z "${iface}" ]]; then
+        log_warn "Could not detect USB network interface on device, skipping route setup"
+        return 0
+    fi
+
+    fn_nv_run_remote_sudo_bash "ip route add ${HOST_IP}/32 dev ${iface} metric 100" 2>/dev/null \
+        || fn_nv_run_remote_sudo_bash "ip route replace ${HOST_IP}/32 dev ${iface} metric 100"
+
+    if "${SSH_CMD[@]}" "ip route show ${HOST_IP}" 2>/dev/null | grep -q "${HOST_IP}"; then
+        log_info "Route to ${HOST_IP} via ${iface} added (metric 100)"
+    else
+        log_warn "Failed to add route to ${HOST_IP}"
+    fi
 }
 
 get_device_id() {
@@ -89,6 +152,22 @@ get_device_id() {
     grep -oP '(?<=<device id=")[^"]+' "$config_file" | head -1
 }
 
+generate_syncthing_config_host() {
+    local target_home="$1"
+
+    if syncthing generate --help >/dev/null 2>&1; then
+        syncthing generate --home="${target_home}"
+    else
+        syncthing -generate="${target_home}"
+    fi
+}
+
+generate_syncthing_config_device() {
+    local target_home="$1"
+
+    "${SSH_CMD[@]}" "if syncthing generate --help >/dev/null 2>&1; then syncthing generate --home='${target_home}'; else syncthing -generate='${target_home}'; fi"
+}
+
 setup_syncthing_host() {
     log_step "Configuring Syncthing on host..."
     
@@ -97,7 +176,7 @@ setup_syncthing_host() {
     systemctl --user stop syncthing.service 2>/dev/null || true
     
     if [[ ! -f "${HOME}/.config/syncthing/config.xml" ]]; then
-        syncthing -generate="${HOME}/.config/syncthing"
+        generate_syncthing_config_host "${HOME}/.config/syncthing"
     fi
     
     local host_config="${HOME}/.config/syncthing/config.xml"
@@ -121,7 +200,7 @@ setup_syncthing_device() {
     "${SSH_CMD[@]}" "systemctl --user stop syncthing.service 2>/dev/null || true"
     
     if ! "${SSH_CMD[@]}" "test -f ~/.config/syncthing/config.xml"; then
-        "${SSH_CMD[@]}" "syncthing -generate=~/.config/syncthing"
+        generate_syncthing_config_device "~/.config/syncthing"
     fi
     
     local device_id
@@ -593,6 +672,8 @@ main() {
     echo ""
 
     check_ssh
+    ensure_device_sudo
+    ensure_device_route
     install_syncthing_host
     install_syncthing_device
     setup_syncthing_host
