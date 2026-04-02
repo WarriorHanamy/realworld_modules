@@ -533,6 +533,30 @@ setup_gui_access() {
     log_info "GUI access configured"
 }
 
+configure_device_ufw() {
+    log_step "Configuring UFW on device (allow all on l4tbr0, wlP1p1s0, docker0)..."
+    NV_SSH_EXTRA_OPTS=(-o BatchMode=yes -o ConnectTimeout=30)
+    fn_nv_reset_ssh
+    fn_nv_ensure_ssh
+
+    fn_nv_run_remote_sudo_bash "apt install -y ufw" 2>/dev/null || true
+
+    "${SSH_CMD[@]}" "sudo ufw status | grep -q 'Status: active'" 2>/dev/null
+    local was_active=$?
+
+    fn_nv_run_remote_sudo_bash "ufw allow in on l4tbr0 comment 'syncthing-usb' && ufw allow in on wlP1p1s0 comment 'syncthing-wifi' && ufw allow in on docker0 comment 'docker' && ufw allow 22/tcp comment 'ssh'" 2>/dev/null
+
+    if [[ $was_active -ne 0 ]]; then
+        log_info "Enabling UFW..."
+        fn_nv_run_remote_sudo_bash "ufw --force enable"
+    else
+        fn_nv_run_remote_sudo_bash "ufw reload"
+    fi
+
+    fn_nv_run_remote_sudo_bash "ufw status verbose"
+    log_info "Device UFW configured"
+}
+
 enable_services() {
     log_step "Enabling Syncthing services..."
     
@@ -680,6 +704,7 @@ main() {
     setup_syncthing_device
     configure_sync
     setup_gui_access
+    configure_device_ufw
     enable_services
     show_status
 }
