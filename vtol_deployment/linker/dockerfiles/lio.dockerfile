@@ -37,12 +37,12 @@ RUN rosdep init || echo "rosdep already initialized" && \
 
 WORKDIR ${WS_DIR}/src
 
-COPY lio/livox_ros_driver2 ./livox_ros_driver2
+COPY vtol_deployment/linker/lio/livox_ros_driver2 ./livox_ros_driver2
 RUN cd livox_ros_driver2 && \
     mv package_ROS2.xml package.xml && \
     sed -i '/LIVOX_INTERFACES_INCLUDE_DIRECTORIES/d' CMakeLists.txt
 
-COPY lio/Livox-SDK2 /tmp/Livox-SDK2
+COPY vtol_deployment/linker/lio/Livox-SDK2 /tmp/Livox-SDK2
 RUN --mount=type=cache,target=/tmp/livox-sdk2-build \
     cd /tmp/Livox-SDK2 && \
     mkdir -p build && cd build && \
@@ -50,7 +50,7 @@ RUN --mount=type=cache,target=/tmp/livox-sdk2-build \
     ldconfig && \
     rm -rf /tmp/Livox-SDK2
 
-COPY lio/FAST_LIO_ROS2 ./FAST_LIO_ROS2
+COPY vtol_deployment/linker/lio/FAST_LIO_ROS2 ./FAST_LIO_ROS2
 
 WORKDIR ${WS_DIR}
 SHELL ["/bin/bash", "-c"]
@@ -64,7 +64,7 @@ RUN --mount=type=cache,target=${WS_DIR}/build \
     --symlink-install \
     --parallel-workers 4
 
-COPY dockerfiles/ros_entrypoint.sh /ros_entrypoint.sh
+COPY vtol_deployment/linker/dockerfiles/ros_entrypoint.sh /ros_entrypoint.sh
 RUN chmod +x /ros_entrypoint.sh
 
 CMD ["ros2", "launch", "fast_lio", "mapping.launch.py", "config_file:=mid360.yaml", "rviz:=false"]
