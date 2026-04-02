@@ -21,11 +21,12 @@ show_help() {
 Usage: $(basename "$0") <command> [OPTIONS]
 
 Commands:
-  setup     Setup Syncthing bidirectional sync (host <-> device)
-  wait      Wait for Syncthing folder sync to complete
-  exec      Run remote command on device (catkin-make / run-vio)
-  ssh-key   Copy SSH key to device
-  sudoer    Enable passwordless sudo on device
+  setup             Setup Syncthing bidirectional sync (host <-> device)
+  wait              Wait for Syncthing folder sync to complete
+  exec              Run remote command on device (catkin-make / run-vio)
+  sync-image        Sync Docker images to device (with integrity check)
+  ssh-key           Copy SSH key to device
+  sudoer            Enable passwordless sudo on device
 
 Run '$(basename "$0") <command> --help' for command-specific options.
 EOF
@@ -49,6 +50,10 @@ cmd_ssh_key() {
 
 cmd_sudoer() {
     exec "${SCRIPT_DIR}/raise_sudoer.sh" "$@"
+}
+
+cmd_sync_image() {
+    exec "${SCRIPT_DIR}/sync-image.sh" "$@"
 }
 
 main() {
@@ -75,6 +80,9 @@ main() {
             ;;
         sudoer)
             cmd_sudoer "$@"
+            ;;
+        sync-image)
+            cmd_sync_image "$@"
             ;;
         -h|--help|help)
             show_help
