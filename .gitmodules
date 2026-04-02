@@ -10,9 +10,9 @@
 	path = vtol_deployment/lio/Livox-SDK2
 	url = https://github.com/Livox-SDK/Livox-SDK2.git
 	branch = master
-[submodule "calibration/LiDAR_IMU_Init"]
-	path = calibration/LiDAR_IMU_Init
+[submodule "vtol_deployment/calibration/LiDAR_IMU_Init"]
+	path = vtol_deployment/calibration/LiDAR_IMU_Init
 	url = https://github.com/hku-mars/LiDAR_IMU_Init.git
-[submodule "vtol_deployment/px4_msgs"]
-	path = vtol_deployment/px4_msgs
+[submodule "host/plotjuggler/px4_msgs"]
+	path = host/plotjuggler/px4_msgs
 	url = https://github.com/WarriorHanamy/px4_msgs_msg.git

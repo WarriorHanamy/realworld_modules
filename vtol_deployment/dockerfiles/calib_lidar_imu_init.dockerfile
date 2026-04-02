@@ -1,66 +1,123 @@
-FROM ros:noetic-ros-base
-
+ARG BASE_IMAGE=ros:noetic-ros-base
 ARG UBUNTU_PORTS_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports
-ARG ROS_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/ros/ubuntu
+ARG CERES_VERSION=2.0.0
+ARG LIVOX_DRIVER_VERSION=2.6.0
+ARG CERES_CXX_FLAGS=-O0 -g0 -fno-inline
+
+FROM ${BASE_IMAGE} AS ceres-builder
+
+ARG UBUNTU_PORTS_MIRROR
+ARG CERES_VERSION
+ARG CERES_CXX_FLAGS
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN sed -i "s|http://ports.ubuntu.com/ubuntu-ports|${UBUNTU_PORTS_MIRROR}|g" /etc/apt/sources.list
 
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    wget \
+    libeigen3-dev \
+    libgoogle-glog-dev \
+    libgflags-dev
+
+RUN cd /tmp && \
+    wget -q "https://github.com/ceres-solver/ceres-solver/archive/refs/tags/${CERES_VERSION}.tar.gz" && \
+    tar zxf "${CERES_VERSION}.tar.gz" && \
+    mkdir -p "ceres-solver-${CERES_VERSION}/build" && \
+    cd "ceres-solver-${CERES_VERSION}/build" && \
+    cmake \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/opt/ceres \
+    -DCMAKE_CXX_FLAGS=${CERES_CXX_FLAGS} \
+    -DCMAKE_CXX_FLAGS_RELEASE=${CERES_CXX_FLAGS} \
+    -DBUILD_TESTING=OFF \
+    -DBUILD_EXAMPLES=OFF \
+    -DBUILD_BENCHMARKS=OFF \
+    -DBUILD_DOCUMENTATION=OFF \
+    -DSCHUR_SPECIALIZATIONS=OFF \
+    -DSUITESPARSE=OFF \
+    -DCXSPARSE=OFF \
+    -DLAPACK=OFF \
+    -DEIGENSPARSE=ON \
+    -DCUSTOM_BLAS=ON \
+    -DMINIGLOG=OFF \
+    -DGFLAGS=ON \
+    -DCERES_THREADING_MODEL=NO_THREADS \
+    .. && \
+    make -j1 && \
+    make install && \
+    rm -rf "/tmp/${CERES_VERSION}.tar.gz" "/tmp/ceres-solver-${CERES_VERSION}"
+
+FROM ${BASE_IMAGE} AS pcl-builder
+
+ARG UBUNTU_PORTS_MIRROR
+
 ENV DEBIAN_FRONTEND=noninteractive
-ENV WS_DIR=/root/catkin_ws
+
+RUN sed -i "s|http://ports.ubuntu.com/ubuntu-ports|${UBUNTU_PORTS_MIRROR}|g" /etc/apt/sources.list
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     git \
     wget \
+    python3-dev \
     python3-pip \
-    python3-tk \
     libeigen3-dev \
-    libpcl-dev \
-    libatlas-base-dev \
     libgoogle-glog-dev \
-    libsuitesparse-dev \
-    libglew-dev \
+    libgflags-dev
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get install -y --no-install-recommends --fix-missing \
+    ros-noetic-tf \
+    ros-noetic-eigen-conversions
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get install -y --no-install-recommends --fix-missing \
     ros-noetic-pcl-ros \
     ros-noetic-pcl-conversions \
-    ros-noetic-eigen-conversions \
-    ros-noetic-tf \
-    ros-noetic-rviz
+    libpcl-dev \
+    ros-noetic-ddynamic-reconfigure
+
+FROM pcl-builder AS final
+
+ARG LIVOX_DRIVER_VERSION
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV WS_DIR=/root/catkin_ws
+ENV Ceres_DIR=/opt/ceres/lib/cmake/Ceres
+ENV CMAKE_PREFIX_PATH=/opt/ceres
+ENV LD_LIBRARY_PATH=/opt/ceres/lib
+
+COPY --from=ceres-builder /opt/ceres /opt/ceres
 
 RUN pip3 install --no-cache-dir matplotlib
-
-RUN cd /tmp && \
-    wget -q https://github.com/ceres-solver/ceres-solver/archive/refs/tags/2.0.0.tar.gz && \
-    tar zxf 2.0.0.tar.gz && \
-    mkdir -p ceres-solver-2.0.0/build && \
-    cd ceres-solver-2.0.0/build && \
-    cmake -DCMAKE_BUILD_TYPE=Release .. && \
-    make -j1 && make install && \
-    ldconfig && \
-    rm -rf /tmp/2.0.0.tar.gz /tmp/ceres-solver-2.0.0
 
 WORKDIR ${WS_DIR}/src
 
 COPY calibration/LiDAR_IMU_Init ./LiDAR_IMU_Init
 
-
 RUN cd /tmp && \
-    wget -q https://github.com/Livox-SDK/livox_ros_driver/archive/refs/tags/v2.6.0.tar.gz && \
-    tar zxf v2.6.0.tar.gz && \
-    mv livox_ros_driver-2.6.0 ${WS_DIR}/src/livox_ros_driver && \
-    rm -rf /tmp/v2.6.0.tar.gz
+    wget -q "https://github.com/Livox-SDK/livox_ros_driver/archive/refs/tags/v${LIVOX_DRIVER_VERSION}.tar.gz" && \
+    tar zxf "v${LIVOX_DRIVER_VERSION}.tar.gz" && \
+    mv "livox_ros_driver-${LIVOX_DRIVER_VERSION}" "${WS_DIR}/src/livox_ros_driver" && \
+    rm -rf "/tmp/v${LIVOX_DRIVER_VERSION}.tar.gz"
 
 WORKDIR ${WS_DIR}
 SHELL ["/bin/bash", "-c"]
 
-RUN --mount=type=cache,target=${WS_DIR}/build \
-    --mount=type=cache,target=${WS_DIR}/devel \
-    source /opt/ros/noetic/setup.bash && \
-    catkin_make -j2
+RUN source /opt/ros/noetic/setup.bash && \
+    catkin_make -j1
 
-COPY vtol_deployment/dockerfiles/calib_entrypoint.sh /calib_entrypoint.sh
+COPY dockerfiles/calib_entrypoint.sh /calib_entrypoint.sh
 RUN chmod +x /calib_entrypoint.sh
 
 ENTRYPOINT ["/calib_entrypoint.sh"]

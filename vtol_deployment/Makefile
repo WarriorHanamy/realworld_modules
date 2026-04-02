@@ -9,7 +9,7 @@ lio:
 	$(DOCKER) buildx build \
 		--platform $(PLATFORM) \
 		-f dockerfiles/lio.dockerfile \
-		-t $(IMAGE_PREFIX)/lio:latest \
+		-t $(IMAGE_PREFIX)/lio-jetson:latest \
 		--load \
 		.
 
@@ -17,7 +17,7 @@ lio-push:
 	$(DOCKER) buildx build \
 		--platform $(PLATFORM) \
 		-f dockerfiles/lio.dockerfile \
-		-t $(IMAGE_PREFIX)/lio:latest \
+		-t $(IMAGE_PREFIX)/lio-jetson:latest \
 		--push \
 		.
 
@@ -26,14 +26,14 @@ calib:
 	$(DOCKER) buildx build \
 		--platform $(PLATFORM) \
 		-f dockerfiles/calib_lidar_imu_init.dockerfile \
-		-t $(IMAGE_PREFIX)/calib-lidar-imu-init:latest \
+		-t $(IMAGE_PREFIX)/calib-lidar-imu-init-jetson:latest \
 		--load \
-		..
+		.
 
 calib-push:
 	$(DOCKER) buildx build \
 		--platform $(PLATFORM) \
 		-f dockerfiles/calib_lidar_imu_init.dockerfile \
-		-t $(IMAGE_PREFIX)/calib-lidar-imu-init:latest \
+		-t $(IMAGE_PREFIX)/calib-lidar-imu-init-jetson:latest \
 		--push \
-		..
+		.
