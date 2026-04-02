@@ -1,9 +1,3 @@
-[submodule "calibration/iKalibr"]
-	path = calibration/iKalibr
-	url = https://github.com/Unsigned-Long/iKalibr.git
-[submodule "calibration/lidar_IMU_calib"]
-	path = calibration/lidar_IMU_calib
-	url = https://github.com/APRIL-ZJU/lidar_IMU_calib.git
 [submodule "vtol_deployment/lio/livox_ros_driver2"]
 	path = vtol_deployment/lio/livox_ros_driver2
 	url = https://github.com/Livox-SDK/livox_ros_driver2.git
@@ -16,3 +10,6 @@
 	path = vtol_deployment/lio/Livox-SDK2
 	url = https://github.com/Livox-SDK/Livox-SDK2.git
 	branch = master
+[submodule "calibration/LiDAR_IMU_Init"]
+	path = calibration/LiDAR_IMU_Init
+	url = https://github.com/hku-mars/LiDAR_IMU_Init.git

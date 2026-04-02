@@ -4,6 +4,7 @@ logs/tmux/*.log
 .st*/
 build/
 devel/
+vtol_ws/
 
 __pycache__/
 *.py[cod]
