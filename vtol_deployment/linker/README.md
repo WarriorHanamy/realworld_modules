@@ -1,8 +1,16 @@
 # linker
 
-Hardware-to-ROS2 bridge modules. Each sub-module connects a physical device to
-the ROS2 namespace so that downstream nodes can consume sensor and flight data
-without worrying about driver details.
+`linker` contains real-world backend integration utilities used by the VTOL
+stack during hardware deployment.
+
+Each sub-module connects a physical device or runtime backend into the ROS 2
+namespace so that upper-layer logic can consume sensor and flight data without
+depending on simulator-specific providers.
+
+In the `vtol_deployment` architecture, `linker` is the layer that replaces the
+simulation backend when moving from simulation-first development to real-world
+operation. It complements `../vtol_interface/`, rather than replacing the
+upper-layer application logic defined there.
 
 ## Sub-modules
 
