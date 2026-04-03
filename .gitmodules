@@ -1,5 +1,5 @@
-[submodule "host/plotjuggler/px4_msgs"]
-	path = host/plotjuggler/px4_msgs
+[submodule "tools/plotjuggler/px4_msgs"]
+	path = tools/plotjuggler/px4_msgs
 	url = https://github.com/WarriorHanamy/px4_msgs_msg.git
 [submodule "vtol_deployment/vtol_interface"]
 	path = vtol_deployment/vtol_interface
