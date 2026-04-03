@@ -44,15 +44,15 @@ RUN test -f ${OPENSSL_CRYPTO_LIBRARY} && test -f ${OPENSSL_SSL_LIBRARY}
 
 WORKDIR ${WS_DIR}/src
 
-COPY vtol_deployment/linker/lio/Livox-SDK2 /tmp/Livox-SDK2
+COPY vtol_deployment/linker/lidar_connector/Livox-SDK2 /tmp/Livox-SDK2
 RUN cd /tmp/Livox-SDK2 && \
     mkdir -p build && cd build && \
     cmake .. && make -j$(nproc) && make install && \
     ldconfig && \
     rm -rf /tmp/Livox-SDK2
 
-COPY vtol_deployment/linker/lio/livox_ros_driver2 ./livox_ros_driver2
-COPY vtol_deployment/linker/lio/FAST_LIO_ROS2 ./FAST_LIO_ROS2
+COPY vtol_deployment/linker/lidar_connector/livox_ros_driver2 ./livox_ros_driver2
+COPY vtol_deployment/linker/lidar_connector/FAST_LIO_ROS2 ./FAST_LIO_ROS2
 
 WORKDIR ${WS_DIR}
 SHELL ["/bin/bash", "-c"]

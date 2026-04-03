@@ -1,17 +1,17 @@
-[submodule "vtol_deployment/linker/lio/livox_ros_driver2"]
-	path = vtol_deployment/linker/lio/livox_ros_driver2
+[submodule "vtol_deployment/linker/lidar_connector/livox_ros_driver2"]
+	path = vtol_deployment/linker/lidar_connector/livox_ros_driver2
 	url = https://github.com/Ericsii/livox_ros_driver2.git
 	branch = feature/use-standard-unit
-[submodule "vtol_deployment/linker/lio/FAST_LIO_ROS2"]
-	path = vtol_deployment/linker/lio/FAST_LIO_ROS2
+[submodule "vtol_deployment/linker/lidar_connector/FAST_LIO_ROS2"]
+	path = vtol_deployment/linker/lidar_connector/FAST_LIO_ROS2
 	url = https://github.com/Ericsii/FAST_LIO_ROS2.git
 	branch = ros2
-[submodule "vtol_deployment/linker/lio/Livox-SDK2"]
-	path = vtol_deployment/linker/lio/Livox-SDK2
+[submodule "vtol_deployment/linker/lidar_connector/Livox-SDK2"]
+	path = vtol_deployment/linker/lidar_connector/Livox-SDK2
 	url = https://github.com/Livox-SDK/Livox-SDK2.git
 	branch = master
-[submodule "vtol_deployment/calibration/LiDAR_IMU_Init"]
-	path = vtol_deployment/calibration/LiDAR_IMU_Init
+[submodule "vtol_deployment/linker/calibration/LiDAR_IMU_Init"]
+	path = vtol_deployment/linker/calibration/LiDAR_IMU_Init
 	url = https://github.com/hku-mars/LiDAR_IMU_Init.git
 [submodule "host/plotjuggler/px4_msgs"]
 	path = host/plotjuggler/px4_msgs
