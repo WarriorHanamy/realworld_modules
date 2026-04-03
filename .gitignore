@@ -15,3 +15,4 @@ __pycache__/
 vtol_deployment/data/*.bag
 vtol_deployment/data/*.db
 vtol_deployment/data/*.txt
+.opencode/
