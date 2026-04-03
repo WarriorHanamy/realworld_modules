@@ -29,10 +29,13 @@ During development, `vtol_interface` runs against a simulation backend.
 During real-world deployment, the upper-layer logic remains the same while the
 simulation backend is replaced by real-world providers from `linker/`.
 
-- `linker/lio/` provides LiDAR and odometry-side runtime pieces.
+- `linker/lidar_connector/` provides LiDAR and odometry-side runtime pieces.
 - `linker/px4_connector/` provides PX4-facing ROS 2 bridge functionality.
 - `linker/calibration/` provides calibration utilities used to support the real
   sensor stack.
+
+`linker/` is its own repository ([vtol-linker](https://github.com/WarriorHanamy/vtol-linker))
+consumed as a submodule here.
 
 In other words, the real-world capability is the composition of:
 
