@@ -44,15 +44,6 @@ In other words, the real-world capability is the composition of:
 
 `vtol_deployment` is the place where this relationship is defined.
 
-## Reading Guide
-
-- Read `vtol_interface/` when working on simulation-first state-machine,
-  neural inference, and sim-side orchestration.
-- Read `linker/` when working on hardware-facing runtime bridges, sensor input,
-  odometry providers, and PX4 real-world connectivity.
-- Read `vtol_interface/services/README.md` for simulation session management.
-- Read `linker/px4_connector/README.md` for the current PX4 odometry bridge scope.
-
 ## Scope Boundary
 
 Some subdirectories under `vtol_interface/` and `linker/` have their own local
