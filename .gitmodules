@@ -1,9 +1,9 @@
-[submodule "tools/plotjuggler/px4_msgs"]
-	path = tools/plotjuggler/px4_msgs
-	url = https://github.com/WarriorHanamy/px4_msgs_msg.git
 [submodule "vtol_deployment/vtol_interface"]
 	path = vtol_deployment/vtol_interface
 	url = https://github.com/WarriorHanamy/vtol-interface.git
 [submodule "vtol_deployment/linker"]
 	path = vtol_deployment/linker
 	url = https://github.com/WarriorHanamy/vtol-linker.git
+[submodule "tools"]
+	path = tools
+	url = https://github.com/WarriorHanamy/vtol-tools.git
