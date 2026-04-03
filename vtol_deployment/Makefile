@@ -37,7 +37,7 @@ docker-build-calib:
 	$(DOCKER) run --rm --privileged tonistiigi/binfmt --install arm64 || true
 	$(DOCKER) buildx build \
 		--platform $(PLATFORM) \
-		-f $(CURDIR)/dockerfiles/calib_lidar_imu_init.dockerfile \
+		-f $(CURDIR)/calibration/dockerfiles/calib_lidar_imu_init.dockerfile \
 		-t $(CALIB_IMAGE) \
 		--load \
 		$(ROOT_DIR)

@@ -9,6 +9,11 @@ RUN sed -i "s|http://ports.ubuntu.com/ubuntu-ports|${UBUNTU_PORTS_MIRROR}|g" /et
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=humble
 ENV WS_DIR=/root/ros2_ws
+ENV OPENSSL_ROOT_DIR=/usr
+ENV OPENSSL_CRYPTO_LIBRARY=/usr/lib/aarch64-linux-gnu/libcrypto.so
+ENV OPENSSL_SSL_LIBRARY=/usr/lib/aarch64-linux-gnu/libssl.so
+ENV CMAKE_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu
+ENV CMAKE_INCLUDE_PATH=/usr/include:/usr/include/aarch64-linux-gnu
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -18,6 +23,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     git \
     wget \
     python3-rosdep \
+    libeigen3-dev \
+    libflann-dev \
+    libssl-dev \
     libpcl-dev
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -33,35 +41,33 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     ros-humble-eigen3-cmake-module
 
 RUN rosdep init || echo "rosdep already initialized" && \
-    rosdep update
+    rosdep update || rosdep update || true
+
+RUN test -f ${OPENSSL_CRYPTO_LIBRARY} && test -f ${OPENSSL_SSL_LIBRARY}
 
 WORKDIR ${WS_DIR}/src
-
-COPY vtol_deployment/linker/lio/livox_ros_driver2 ./livox_ros_driver2
-RUN cd livox_ros_driver2 && \
-    mv package_ROS2.xml package.xml && \
-    sed -i '/LIVOX_INTERFACES_INCLUDE_DIRECTORIES/d' CMakeLists.txt
 
 COPY vtol_deployment/linker/lio/Livox-SDK2 /tmp/Livox-SDK2
 RUN --mount=type=cache,target=/tmp/livox-sdk2-build \
     cd /tmp/Livox-SDK2 && \
     mkdir -p build && cd build && \
-    cmake .. && make -j1 && make install && \
+    cmake .. && make -j$(nproc) && make install && \
     ldconfig && \
     rm -rf /tmp/Livox-SDK2
 
+COPY vtol_deployment/linker/lio/livox_ros_driver2 ./livox_ros_driver2
 COPY vtol_deployment/linker/lio/FAST_LIO_ROS2 ./FAST_LIO_ROS2
 
 WORKDIR ${WS_DIR}
 SHELL ["/bin/bash", "-c"]
 
-RUN --mount=type=cache,target=${WS_DIR}/build \
-    --mount=type=cache,target=${WS_DIR}/log \
+ENV LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}
+
+RUN rm -rf ${WS_DIR}/build ${WS_DIR}/install ${WS_DIR}/log && \
     source /opt/ros/humble/setup.bash && \
     colcon build \
     --packages-select livox_ros_driver2 fast_lio \
-    --cmake-args -DROS_EDITION=ROS2 -DHUMBLE_ROS=ON \
-    --symlink-install \
+    --cmake-args -DHUMBLE_ROS=ON -DOPENSSL_ROOT_DIR=${OPENSSL_ROOT_DIR} -DOPENSSL_CRYPTO_LIBRARY=${OPENSSL_CRYPTO_LIBRARY} -DOPENSSL_SSL_LIBRARY=${OPENSSL_SSL_LIBRARY} -DCMAKE_LIBRARY_PATH=${CMAKE_LIBRARY_PATH} -DCMAKE_INCLUDE_PATH=${CMAKE_INCLUDE_PATH} \
     --parallel-workers 4
 
 COPY vtol_deployment/linker/dockerfiles/ros_entrypoint.sh /ros_entrypoint.sh

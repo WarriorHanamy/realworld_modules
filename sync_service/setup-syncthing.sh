@@ -14,7 +14,7 @@ fn_nv_load_env
 DEFAULT_DEVICE_IP="${DEVICE_IP}"
 DEFAULT_DEVICE_USER="${DEVICE_USER}"
 DEFAULT_SSH_KEY="${SSH_KEY}"
-DEFAULT_SOURCE_FOLDER="${SOURCE_FOLDER}"
+DEFAULT_SOURCE_FOLDER="${HOST_SOURCE_FOLDER}"
 DEFAULT_DEVICE_TARGET_FOLDER="${DEVICE_TARGET_FOLDER}"
 
 RED='\033[0;31m'
@@ -232,7 +232,7 @@ import os
 config_path = "${host_config}"
 device_id = "${device_id}"
 host_id = "${host_id}"
-source_folder = "${SOURCE_FOLDER}"
+source_folder = "${HOST_SOURCE_FOLDER}"
 folder_id = "${folder_id}"
 
 ET.register_namespace('', 'http://syncthing.net/syncthing')
@@ -589,7 +589,7 @@ show_status() {
     echo "=========================================="
     echo ""
     echo "Sync folders:"
-    echo "  Host:   ${SOURCE_FOLDER}"
+    echo "  Host:   ${HOST_SOURCE_FOLDER}"
     echo "  Device: ${DEVICE_USER}@${DEVICE_IP}:${DEVICE_TARGET_FOLDER}"
     echo ""
     echo "Web UI:"
@@ -620,7 +620,7 @@ Options:
     --device-ip IP                 Override DEVICE_IP
     --device-user USER             Override DEVICE_USER
     --ssh-key PATH                 Override SSH_KEY
-    --source-folder PATH           Override SOURCE_FOLDER
+    --source-folder PATH           Override HOST_SOURCE_FOLDER
     --device-target-folder PATH    Override DEVICE_TARGET_FOLDER
     --uninstall                    Remove Syncthing services
 EOF
@@ -663,7 +663,7 @@ main() {
                 shift 2
                 ;;
             --source-folder)
-                SOURCE_FOLDER="$2"
+                HOST_SOURCE_FOLDER="$2"
                 shift 2
                 ;;
             --device-target-folder)
@@ -691,7 +691,7 @@ main() {
     mkdir -p "$CONFIG_DIR"
     
     echo "Setting up bidirectional sync with Syncthing"
-    echo "Source: ${SOURCE_FOLDER}"
+    echo "Source: ${HOST_SOURCE_FOLDER}"
     echo "Target: ${DEVICE_USER}@${DEVICE_IP}:${DEVICE_TARGET_FOLDER}"
     echo ""
 

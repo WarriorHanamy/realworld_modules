@@ -6,4 +6,4 @@ This project uses Syncthing for bidirectional sync between host and Jetson devic
 Use the remote execution wrappers instead of direct commands:
 
 
-Device config: `sync/.env` (DEVICE_IP, DEVICE_USER, SSH_KEY, etc.)
+Device config: `sync_service/.env` (DEVICE_IP, DEVICE_USER, SSH_KEY, etc.)

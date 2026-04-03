@@ -121,7 +121,7 @@ RUN sed -i '/^target_link_libraries(li_init/i add_dependencies(li_init ${${PROJE
 
 RUN mkdir -p /data ${WS_DIR}/src/LiDAR_IMU_Init/result
 
-COPY vtol_deployment/dockerfiles/calib_entrypoint.sh /calib_entrypoint.sh
+COPY vtol_deployment/calibration/dockerfiles/calib_entrypoint.sh /calib_entrypoint.sh
 RUN chmod +x /calib_entrypoint.sh
 
 COPY vtol_deployment/scripts/calib_run.sh /usr/local/bin/calib_run.sh

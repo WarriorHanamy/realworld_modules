@@ -19,6 +19,10 @@ fn_nv_log_warn() {
   printf '[nv][warn] %s\n' "$*" >&2
 }
 
+fn_nv_log_error() {
+  printf '[nv][error] %s\n' "$*" >&2
+}
+
 fn_nv_load_env() {
   if [[ "${_NV_ENV_LOADED}" -eq 1 ]]; then
     return 0
@@ -31,15 +35,28 @@ fn_nv_load_env() {
     source "${_NV_ENV_FILE}"
     set +a
   else
-    fn_nv_log_warn "config file not found, using built-in defaults: ${_NV_ENV_FILE}"
+    fn_nv_log_error "config file not found: ${_NV_ENV_FILE}; create it and set the required values there"
+    return 1
   fi
 
-  : "${DEVICE_IP:=192.168.55.1}"
-  : "${DEVICE_USER:=nv}"
-  : "${DEVICE_PASSWD:=}"
-  : "${SSH_KEY:=${HOME}/.ssh/id_ed25519}"
-  : "${SOURCE_FOLDER:=${HOME}/zuanfeng-deploy}"
-  : "${DEVICE_TARGET_FOLDER:=/home/${DEVICE_USER}/zuanfeng-mono/zuanfeng-deploy}"
+  local required_vars=(
+    DEVICE_IP
+    DEVICE_USER
+    DEVICE_PASSWD
+    SSH_KEY
+    HOST_SOURCE_FOLDER
+    DEVICE_TARGET_FOLDER
+    HOST_IP
+    HOST_PROXY_PORT
+  )
+  local var_name
+
+  for var_name in "${required_vars[@]}"; do
+    if [[ ! -v "${var_name}" ]]; then
+      fn_nv_log_error "required env var missing: ${var_name}; set it in ${_NV_ENV_FILE}"
+      return 1
+    fi
+  done
 
   _NV_ENV_LOADED=1
   fn_nv_log_info "config ready: DEVICE_USER=${DEVICE_USER}, DEVICE_IP=${DEVICE_IP}"
@@ -124,5 +141,5 @@ fn_nv_setup_apt_sources() {
   fn_nv_load_env
   fn_nv_ensure_ssh
   fn_nv_log_info "setting up apt sources on ${SSH_TARGET}"
-  fn_nv_run_remote_sudo_bash "find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|http://ports.ubuntu.com/ubuntu-ports|https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports|g' {} + && find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|https://mirrors.aliyun.com/ubuntu-ports|https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports|g' {} + && find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|https://download.docker.com/linux/ubuntu|https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/ubuntu|g' {} + && printf '%s\n' 'Acquire::ForceIPv4 \"true\";' > /etc/apt/apt.conf.d/99force-ipv4 && printf 'Acquire::http::Proxy \"http://${HOST_IP}:${PROXY_PORT}/\";\nAcquire::https::Proxy \"http://${HOST_IP}:${PROXY_PORT}/\";\n' > /etc/apt/apt.conf.d/99proxy && apt update"
+  fn_nv_run_remote_sudo_bash "find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|http://ports.ubuntu.com/ubuntu-ports|https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports|g' {} + && find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|https://mirrors.aliyun.com/ubuntu-ports|https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports|g' {} + && find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|https://download.docker.com/linux/ubuntu|https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/ubuntu|g' {} + && printf '%s\n' 'Acquire::ForceIPv4 \"true\";' > /etc/apt/apt.conf.d/99force-ipv4 && printf 'Acquire::http::Proxy \"http://${HOST_IP}:${HOST_PROXY_PORT}/\";\nAcquire::https::Proxy \"http://${HOST_IP}:${HOST_PROXY_PORT}/\";\n' > /etc/apt/apt.conf.d/99proxy && apt update"
 }

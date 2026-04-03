@@ -1,7 +1,7 @@
 [submodule "vtol_deployment/linker/lio/livox_ros_driver2"]
 	path = vtol_deployment/linker/lio/livox_ros_driver2
-	url = https://github.com/Livox-SDK/livox_ros_driver2.git
-	branch = master
+	url = https://github.com/Ericsii/livox_ros_driver2.git
+	branch = feature/use-standard-unit
 [submodule "vtol_deployment/linker/lio/FAST_LIO_ROS2"]
 	path = vtol_deployment/linker/lio/FAST_LIO_ROS2
 	url = https://github.com/Ericsii/FAST_LIO_ROS2.git
