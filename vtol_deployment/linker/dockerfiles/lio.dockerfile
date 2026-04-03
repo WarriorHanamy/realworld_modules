@@ -1,7 +1,5 @@
 FROM ros:humble-ros-base
 
-ARG CACHEBUST=1
-
 ARG UBUNTU_PORTS_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports
 ARG ROS_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/ros2/ubuntu
 
