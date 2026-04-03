@@ -1,9 +1,13 @@
 FROM ros:humble-ros-base
 
+ARG CACHEBUST=1
+
 ARG UBUNTU_PORTS_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports
-ARG ROS_MIRROR=http://mirrors.tuna.tsinghua.edu.cn/ros/ubuntu
+ARG ROS_MIRROR=https://mirrors.tuna.tsinghua.edu.cn/ros2/ubuntu
 
 RUN sed -i "s|http://ports.ubuntu.com/ubuntu-ports|${UBUNTU_PORTS_MIRROR}|g" /etc/apt/sources.list && \
+    sed -i "s|http://packages.ros.org/ros2/ubuntu|${ROS_MIRROR}|g" /etc/apt/sources.list.d/ros2.sources && \
+    sed -i "s|Types: deb deb-src|Types: deb|g" /etc/apt/sources.list.d/ros2.sources && \
     cat /etc/apt/sources.list
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -15,9 +19,7 @@ ENV OPENSSL_SSL_LIBRARY=/usr/lib/aarch64-linux-gnu/libssl.so
 ENV CMAKE_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu
 ENV CMAKE_INCLUDE_PATH=/usr/include:/usr/include/aarch64-linux-gnu
 
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     git \
@@ -26,11 +28,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libeigen3-dev \
     libflann-dev \
     libssl-dev \
-    libpcl-dev
-
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+    libpcl-dev \
     ros-humble-pcl-ros \
     ros-humble-pcl-conversions \
     ros-humble-tf2 \
@@ -38,7 +36,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     ros-humble-tf2-sensor-msgs \
     ros-humble-tf2-geometry-msgs \
     ros-humble-tf2-eigen \
-    ros-humble-eigen3-cmake-module
+    ros-humble-eigen3-cmake-module && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN rosdep init || echo "rosdep already initialized" && \
     rosdep update || rosdep update || true
@@ -48,8 +47,7 @@ RUN test -f ${OPENSSL_CRYPTO_LIBRARY} && test -f ${OPENSSL_SSL_LIBRARY}
 WORKDIR ${WS_DIR}/src
 
 COPY vtol_deployment/linker/lio/Livox-SDK2 /tmp/Livox-SDK2
-RUN --mount=type=cache,target=/tmp/livox-sdk2-build \
-    cd /tmp/Livox-SDK2 && \
+RUN cd /tmp/Livox-SDK2 && \
     mkdir -p build && cd build && \
     cmake .. && make -j$(nproc) && make install && \
     ldconfig && \
@@ -61,7 +59,7 @@ COPY vtol_deployment/linker/lio/FAST_LIO_ROS2 ./FAST_LIO_ROS2
 WORKDIR ${WS_DIR}
 SHELL ["/bin/bash", "-c"]
 
-ENV LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}
+ENV LD_LIBRARY_PATH=/usr/local/lib
 
 RUN rm -rf ${WS_DIR}/build ${WS_DIR}/install ${WS_DIR}/log && \
     source /opt/ros/humble/setup.bash && \
