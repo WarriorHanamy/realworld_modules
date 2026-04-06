@@ -7,9 +7,29 @@ Use the remote execution wrappers instead of direct commands:
 
 Device config: `sync_service/.env` (DEVICE_IP, DEVICE_USER, SSH_KEY, etc.)
 
-## Network Convention
+## Repository Structure Convention
 
-- **host**: 192.168.55.100 (development machine)
-- **device**: 192.168.55.1 (Jetson device)
+- Subfolders are developed independently.
+- The repository root is an assembly layer for easy-to-use integration workflows.
 
-When referring to network operations, use these IP addresses consistently.
+## Makefile Convention
+
+- Image name: `vtol/{service}-{platform}:latest` (platform: `jetson` or `host`)
+- Build: `docker-build-{service}-jetson`
+- Run: `docker-run-{service}-jetson`
+- Shell (debug): `docker-run-{service}-jetson-shell`
+- All `docker run` must include `--network host` and `--ipc host`
+- Each directly runnable Jetson service must provide a `docker-run-{service}-jetson` example in its owning subfolder Makefile
+
+## Run Scripts Convention
+
+- `run_scripts/` holds entry scripts for the Jetson device.
+- Filename: `run_{service}.sh`
+- Each script handles one service.
+- Prefer `tmux_utils.sh` for process lifecycle management when orchestrating multiple services.
+
+## Discovery Rule
+
+- When creating or updating `run_scripts/`, inspect the owning subfolder Makefile only.
+- Prefer the `docker-run-{service}-jetson` target as the runtime example.
+- Do not invent a root-level runtime shape that conflicts with the subfolder Makefile.
