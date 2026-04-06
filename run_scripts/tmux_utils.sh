@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 fn_tmux_session_start() {
   local session="${1:-main}"
