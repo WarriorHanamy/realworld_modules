@@ -1,0 +1,20 @@
+// .git internals - causes corruption when synced between hosts
+.git/
+.gitmodules
+
+// Syncthing artifacts
+.stfolder/
+.stversions/
+
+// Sync conflict files
+*.sync-conflict-*
+
+// Build artifacts
+build/
+devel/
+__pycache__/
+*.pyc
+
+// Data files
+*.bag
+*.db
