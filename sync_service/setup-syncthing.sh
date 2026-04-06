@@ -16,6 +16,7 @@ DEFAULT_DEVICE_USER="${DEVICE_USER}"
 DEFAULT_SSH_KEY="${SSH_KEY}"
 DEFAULT_SOURCE_FOLDER="${HOST_SOURCE_FOLDER}"
 DEFAULT_DEVICE_TARGET_FOLDER="${DEVICE_TARGET_FOLDER}"
+DEFAULT_RESCAN_INTERVAL="10"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -169,15 +170,14 @@ generate_syncthing_config_device() {
 }
 
 setup_syncthing_host() {
-    log_step "Configuring Syncthing on host..."
+    log_step "Reinitializing Syncthing on host..."
     
     mkdir -p "${HOME}/.config/syncthing"
     
     systemctl --user stop syncthing.service 2>/dev/null || true
-    
-    if [[ ! -f "${HOME}/.config/syncthing/config.xml" ]]; then
-        generate_syncthing_config_host "${HOME}/.config/syncthing"
-    fi
+
+    rm -f "${HOME}/.config/syncthing/config.xml" "${HOME}/.config/syncthing/cert.pem" "${HOME}/.config/syncthing/key.pem"
+    generate_syncthing_config_host "${HOME}/.config/syncthing"
     
     local host_config="${HOME}/.config/syncthing/config.xml"
     local host_id
@@ -190,7 +190,7 @@ setup_syncthing_host() {
 }
 
 setup_syncthing_device() {
-    log_step "Configuring Syncthing on device..."
+    log_step "Reinitializing Syncthing on device..."
     NV_SSH_EXTRA_OPTS=(-o BatchMode=yes -o ConnectTimeout=30)
     fn_nv_reset_ssh
     fn_nv_ensure_ssh
@@ -198,10 +198,9 @@ setup_syncthing_device() {
     "${SSH_CMD[@]}" "mkdir -p ~/.config/syncthing"
     
     "${SSH_CMD[@]}" "systemctl --user stop syncthing.service 2>/dev/null || true"
-    
-    if ! "${SSH_CMD[@]}" "test -f ~/.config/syncthing/config.xml"; then
-        generate_syncthing_config_device "~/.config/syncthing"
-    fi
+
+    "${SSH_CMD[@]}" "rm -f ~/.config/syncthing/config.xml ~/.config/syncthing/cert.pem ~/.config/syncthing/key.pem"
+    generate_syncthing_config_device "~/.config/syncthing"
     
     local device_id
     device_id=$("${SSH_CMD[@]}" "grep -oP '(?<=<device id=\")[^\"]+' ~/.config/syncthing/config.xml | head -1")
@@ -213,7 +212,7 @@ setup_syncthing_device() {
 }
 
 configure_sync() {
-    log_step "Configuring bidirectional sync..."
+    log_step "Configuring single direction sync (host -> device)..."
     
     local host_config="${HOME}/.config/syncthing/config.xml"
     local host_id device_id
@@ -302,7 +301,7 @@ if not folder_existing:
     new_folder.set('id', folder_id)
     new_folder.set('label', 'zuanfeng-deploy')
     new_folder.set('path', source_folder)
-    new_folder.set('type', 'sendreceive')
+    new_folder.set('type', 'sendonly')
     new_folder.set('rescanIntervalS', '10')
     new_folder.set('fsWatcherEnabled', 'true')
     new_folder.set('fsWatcherDelayS', '2')
@@ -446,7 +445,7 @@ if not folder_existing:
     new_folder.set('id', folder_id)
     new_folder.set('label', 'zuanfeng-deploy')
     new_folder.set('path', target_folder)
-    new_folder.set('type', 'sendreceive')
+    new_folder.set('type', 'receiveonly')
     new_folder.set('rescanIntervalS', '10')
     new_folder.set('fsWatcherEnabled', 'true')
     new_folder.set('fsWatcherDelayS', '2')
@@ -585,12 +584,12 @@ enable_services() {
 show_status() {
     echo ""
     echo "=========================================="
-    echo -e "${GREEN}Syncthing Bidirectional Sync Setup Complete${NC}"
+    echo -e "${GREEN}Syncthing Single Direction Sync Setup Complete${NC}"
     echo "=========================================="
     echo ""
     echo "Sync folders:"
-    echo "  Host:   ${HOST_SOURCE_FOLDER}"
-    echo "  Device: ${DEVICE_USER}@${DEVICE_IP}:${DEVICE_TARGET_FOLDER}"
+    echo "  Host (sendonly):   ${HOST_SOURCE_FOLDER}"
+    echo "  Device (receiveonly): ${DEVICE_USER}@${DEVICE_IP}:${DEVICE_TARGET_FOLDER}"
     echo ""
     echo "Web UI:"
     echo "  Host:   http://localhost:8384"
@@ -601,11 +600,11 @@ show_status() {
     echo "  Host logs:     journalctl --user -u syncthing -f"
     echo "  Device status: ${SCRIPT_DIR}/device-status.sh"
     echo ""
-    echo "First time setup:"
-    echo "  1. Open http://localhost:8384 on host"
-    echo "  2. Open http://${DEVICE_IP}:8384 on device"
-    echo "  3. Add each device to the other's device list"
-    echo "  4. Share the 'zuanfeng-deploy' folder with the other device"
+    echo "Behavior:"
+    echo "  1. Every run reinitializes both Syncthing configs"
+    echo "  2. Host folder is sendonly"
+    echo "  3. Device folder is receiveonly"
+    echo "  4. Existing Syncthing local config is replaced"
     echo ""
 }
 
@@ -613,7 +612,7 @@ show_help() {
     cat << EOF
 Usage: $0 [OPTIONS]
 
-Setup Syncthing bidirectional sync between host and device.
+Setup Syncthing single direction sync between host and device.
 
 Options:
     -h, --help                     Show this help message
@@ -643,6 +642,7 @@ uninstall() {
 
 main() {
     local do_uninstall=0
+    local rescan_interval="${DEFAULT_RESCAN_INTERVAL}"
 
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -690,7 +690,7 @@ main() {
     fn_nv_reset_ssh
     mkdir -p "$CONFIG_DIR"
     
-    echo "Setting up bidirectional sync with Syncthing"
+    echo "Setting up single direction sync with Syncthing (host -> device)"
     echo "Source: ${HOST_SOURCE_FOLDER}"
     echo "Target: ${DEVICE_USER}@${DEVICE_IP}:${DEVICE_TARGET_FOLDER}"
     echo ""
