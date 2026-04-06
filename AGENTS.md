@@ -33,3 +33,9 @@ Device config: `sync_service/.env` (DEVICE_IP, DEVICE_USER, SSH_KEY, etc.)
 - When creating or updating `run_scripts/`, inspect the owning subfolder Makefile only.
 - Prefer the `docker-run-{service}-jetson` target as the runtime example.
 - Do not invent a root-level runtime shape that conflicts with the subfolder Makefile.
+
+## Run Scripts Restriction
+
+- When writing `run_scripts/`, you are **not allowed to change subfolder things** (code, configs, Dockerfiles, etc.).
+- You **can read and rewrite** existing `run_scripts/` files only.
+- If subfolder changes are needed, propose them separately for the subfolder owner.
