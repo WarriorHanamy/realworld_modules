@@ -10,4 +10,4 @@ docker run --rm \
   --privileged \
   --entrypoint bash \
   vtol/px4-connector-jetson:latest \
-  -c "MicroXRCEAgent serial --dev ${MICRO_XRCE_DEVICE} -b ${MICRO_XRCE_BAUDRATE}"
+  -c "export LD_LIBRARY_PATH=/usr/local/lib:\$LD_LIBRARY_PATH && ldconfig && MicroXRCEAgent serial --dev ${MICRO_XRCE_DEVICE} -b ${MICRO_XRCE_BAUDRATE}"

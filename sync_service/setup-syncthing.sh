@@ -303,6 +303,11 @@ if not existing:
             root.insert(list(root).index(elem) + 1, new_dev)
             break
 
+# Remove default folder created by syncthing generate (path ~/Sync may not exist)
+for folder in list(root.iter()):
+    if folder.tag.endswith('folder') and folder.get('id') in ('default', ''):
+        root.remove(folder)
+
 folder_existing = False
 for folder in root.iter():
     if folder.tag.endswith('folder') and folder.get('id') == folder_id:
@@ -446,6 +451,11 @@ if not existing:
             
             root.insert(list(root).index(elem) + 1, new_dev)
             break
+
+# Remove default folder created by syncthing generate (path ~/Sync may not exist)
+for folder in list(root.iter()):
+    if folder.tag.endswith('folder') and folder.get('id') in ('default', ''):
+        root.remove(folder)
 
 folder_existing = False
 for folder in root.iter():
