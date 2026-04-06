@@ -17,6 +17,10 @@ DEFAULT_SSH_KEY="${SSH_KEY}"
 DEFAULT_SOURCE_FOLDER="${HOST_SOURCE_FOLDER}"
 DEFAULT_DEVICE_TARGET_FOLDER="${DEVICE_TARGET_FOLDER}"
 DEFAULT_RESCAN_INTERVAL="10"
+SYNC_FOLDER_ID="realworld_modules"
+DEVICE_AUTOREVERT_TIMER="zuanfeng-syncthing-autorevert.timer"
+DEVICE_AUTOREVERT_SERVICE="zuanfeng-syncthing-autorevert.service"
+DEVICE_AUTOREVERT_INTERVAL_SECONDS="15"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -233,7 +237,7 @@ configure_sync() {
     host_id=$(cat "${CONFIG_DIR}/host-id.txt")
     device_id=$(cat "${CONFIG_DIR}/device-id.txt")
     
-    local folder_id="zuanfeng-deploy"
+    local folder_id="${SYNC_FOLDER_ID}"
     
     local temp_config="/tmp/syncthing-config-$$.xml"
     
@@ -317,7 +321,7 @@ for folder in root.iter():
 if not folder_existing:
     new_folder = ET.Element('folder')
     new_folder.set('id', folder_id)
-    new_folder.set('label', 'zuanfeng-deploy')
+    new_folder.set('label', 'realworld_modules')
     new_folder.set('path', source_folder)
     new_folder.set('type', 'sendonly')
     new_folder.set('rescanIntervalS', '10')
@@ -466,7 +470,7 @@ for folder in root.iter():
 if not folder_existing:
     new_folder = ET.Element('folder')
     new_folder.set('id', folder_id)
-    new_folder.set('label', 'zuanfeng-deploy')
+    new_folder.set('label', 'realworld_modules')
     new_folder.set('path', target_folder)
     new_folder.set('type', 'receiveonly')
     new_folder.set('rescanIntervalS', '10')
@@ -566,7 +570,7 @@ configure_device_ufw() {
     "${SSH_CMD[@]}" "sudo ufw status | grep -q 'Status: active'" 2>/dev/null
     local was_active=$?
 
-    fn_nv_run_remote_sudo_bash "ufw allow in on l4tbr0 comment 'syncthing-usb' && ufw allow in on wlP1p1s0 comment 'syncthing-wifi' && ufw allow in on docker0 comment 'docker' && ufw allow 22/tcp comment 'ssh'" 2>/dev/null
+    fn_nv_run_remote_sudo_bash "ufw allow in on l4tbr0 comment 'syncthing-usb' || true; ufw allow in on wlP1p1s0 comment 'syncthing-wifi' || true; ufw allow in on docker0 comment 'docker' || true; ufw allow 22/tcp comment 'ssh' || true" 2>/dev/null
 
     if [[ $was_active -ne 0 ]]; then
         log_info "Enabling UFW..."
@@ -577,6 +581,75 @@ configure_device_ufw() {
 
     fn_nv_run_remote_sudo_bash "ufw status verbose"
     log_info "Device UFW configured"
+}
+
+configure_device_autorevert() {
+    log_step "Configuring device auto-revert for receive-only changes..."
+    NV_SSH_EXTRA_OPTS=(-o BatchMode=yes -o ConnectTimeout=30)
+    fn_nv_reset_ssh
+    fn_nv_ensure_ssh
+
+    fn_nv_run_remote_bash_script <<'EOF'
+set -euo pipefail
+
+mkdir -p ~/.local/bin ~/.config/systemd/user
+
+cat > ~/.local/bin/zuanfeng-syncthing-autorevert <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_path="${HOME}/.config/syncthing/config.xml"
+folder_id="realworld_modules"
+
+if [[ ! -f "${config_path}" ]]; then
+  exit 0
+fi
+
+api_key="$(grep -oP '(?<=<apikey>)[^<]+' "${config_path}" 2>/dev/null || true)"
+if [[ -z "${api_key}" ]]; then
+  exit 0
+fi
+
+status_json="$(curl -fsS -H "X-API-Key: ${api_key}" "http://127.0.0.1:8384/rest/db/status?folder=${folder_id}" 2>/dev/null || true)"
+if [[ -z "${status_json}" ]]; then
+  exit 0
+fi
+
+receive_only_changed="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("receiveOnlyTotalItems", 0))' <<<"${status_json}" 2>/dev/null || printf '0')"
+if [[ "${receive_only_changed}" =~ ^[0-9]+$ ]] && [[ "${receive_only_changed}" -gt 0 ]]; then
+  curl -fsS -X POST -H "X-API-Key: ${api_key}" "http://127.0.0.1:8384/rest/db/revert?folder=${folder_id}" >/dev/null
+fi
+SCRIPT
+
+chmod +x ~/.local/bin/zuanfeng-syncthing-autorevert
+
+cat > ~/.config/systemd/user/zuanfeng-syncthing-autorevert.service <<'UNIT'
+[Unit]
+Description=Auto-revert Syncthing receive-only local changes
+After=syncthing.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/zuanfeng-syncthing-autorevert
+UNIT
+
+cat > ~/.config/systemd/user/zuanfeng-syncthing-autorevert.timer <<'UNIT'
+[Unit]
+Description=Run Syncthing receive-only auto-revert periodically
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=15s
+Unit=zuanfeng-syncthing-autorevert.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+systemctl --user daemon-reload
+EOF
+
+    log_info "Device auto-revert configured"
 }
 
 enable_services() {
@@ -599,7 +672,7 @@ enable_services() {
     fn_nv_reset_ssh
     fn_nv_ensure_ssh
     
-    "${SSH_CMD[@]}" "loginctl enable-linger ${DEVICE_USER} 2>/dev/null || true && systemctl --user enable syncthing.service && systemctl --user restart syncthing.service"
+    "${SSH_CMD[@]}" "loginctl enable-linger ${DEVICE_USER} 2>/dev/null || true && systemctl --user enable syncthing.service ${DEVICE_AUTOREVERT_TIMER} && systemctl --user restart syncthing.service ${DEVICE_AUTOREVERT_TIMER}"
     sleep 2
     
     if "${SSH_CMD[@]}" "systemctl --user is-active --quiet syncthing.service" &>/dev/null; then
@@ -607,6 +680,8 @@ enable_services() {
     else
         log_warn "Device Syncthing service may not be running (check with SSH)"
     fi
+
+    "${SSH_CMD[@]}" "systemctl --user start ${DEVICE_AUTOREVERT_SERVICE}" 2>/dev/null || true
 }
 
 show_status() {
@@ -631,8 +706,9 @@ show_status() {
     echo "Behavior:"
     echo "  1. Every run reinitializes both Syncthing configs"
     echo "  2. Host folder is sendonly"
-    echo "  3. Device folder is receiveonly"
-    echo "  4. Existing Syncthing local config is replaced"
+    echo "  3. Device folder is receiveonly with auto-revert"
+    echo "  4. Device local edits are overwritten by host changes"
+    echo "  5. Existing Syncthing local config is replaced"
     echo ""
 }
 
@@ -663,6 +739,9 @@ uninstall() {
     fn_nv_ensure_ssh
     "${SSH_CMD[@]}" "systemctl --user stop syncthing.service 2>/dev/null || true"
     "${SSH_CMD[@]}" "systemctl --user disable syncthing.service 2>/dev/null || true"
+    "${SSH_CMD[@]}" "systemctl --user stop ${DEVICE_AUTOREVERT_TIMER} ${DEVICE_AUTOREVERT_SERVICE} 2>/dev/null || true"
+    "${SSH_CMD[@]}" "systemctl --user disable ${DEVICE_AUTOREVERT_TIMER} 2>/dev/null || true"
+    "${SSH_CMD[@]}" "rm -f ~/.config/systemd/user/${DEVICE_AUTOREVERT_TIMER} ~/.config/systemd/user/${DEVICE_AUTOREVERT_SERVICE} ~/.local/bin/zuanfeng-syncthing-autorevert && systemctl --user daemon-reload" 2>/dev/null || true
     
     log_info "Syncthing services stopped (configs preserved)"
     log_info "To fully remove: rm -rf ~/.config/syncthing"
@@ -733,6 +812,7 @@ main() {
     configure_sync
     setup_gui_access
     configure_device_ufw
+    configure_device_autorevert
     enable_services
     show_status
 }
