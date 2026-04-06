@@ -173,8 +173,17 @@ setup_syncthing_host() {
     log_step "Reinitializing Syncthing on host..."
     
     mkdir -p "${HOME}/.config/syncthing"
+    mkdir -p "${HOST_SOURCE_FOLDER}"
     
     systemctl --user stop syncthing.service 2>/dev/null || true
+
+    # Remove legacy override that points --home to a different directory
+    local _override="${HOME}/.config/systemd/user/syncthing.service.d/override.conf"
+    if [[ -f "${_override}" ]]; then
+        rm -f "${_override}"
+        systemctl --user daemon-reload
+        log_info "Removed legacy syncthing service override"
+    fi
 
     rm -f "${HOME}/.config/syncthing/config.xml" "${HOME}/.config/syncthing/cert.pem" "${HOME}/.config/syncthing/key.pem"
     generate_syncthing_config_host "${HOME}/.config/syncthing"
@@ -196,8 +205,12 @@ setup_syncthing_device() {
     fn_nv_ensure_ssh
     
     "${SSH_CMD[@]}" "mkdir -p ~/.config/syncthing"
+    "${SSH_CMD[@]}" "mkdir -p '${DEVICE_TARGET_FOLDER}'"
     
     "${SSH_CMD[@]}" "systemctl --user stop syncthing.service 2>/dev/null || true"
+
+    # Remove legacy override that points --home to a different directory
+    "${SSH_CMD[@]}" "rm -f ~/.config/systemd/user/syncthing.service.d/override.conf && systemctl --user daemon-reload 2>/dev/null || true"
 
     "${SSH_CMD[@]}" "rm -f ~/.config/syncthing/config.xml ~/.config/syncthing/cert.pem ~/.config/syncthing/key.pem"
     generate_syncthing_config_device "~/.config/syncthing"
@@ -559,6 +572,7 @@ configure_device_ufw() {
 enable_services() {
     log_step "Enabling Syncthing services..."
     
+    loginctl enable-linger "${USER}" 2>/dev/null || true
     systemctl --user enable syncthing.service
     systemctl --user restart syncthing.service
     sleep 2
@@ -575,10 +589,14 @@ enable_services() {
     fn_nv_reset_ssh
     fn_nv_ensure_ssh
     
-    "${SSH_CMD[@]}" "systemctl --user enable syncthing.service && systemctl --user restart syncthing.service"
+    "${SSH_CMD[@]}" "loginctl enable-linger ${DEVICE_USER} 2>/dev/null || true && systemctl --user enable syncthing.service && systemctl --user restart syncthing.service"
     sleep 2
     
-    log_info "Device Syncthing service started"
+    if "${SSH_CMD[@]}" "systemctl --user is-active --quiet syncthing.service" &>/dev/null; then
+        log_info "Device Syncthing service started"
+    else
+        log_warn "Device Syncthing service may not be running (check with SSH)"
+    fi
 }
 
 show_status() {
