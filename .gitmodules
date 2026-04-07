@@ -1,9 +1,9 @@
-[submodule "vtol_deployment/vtol_interface"]
+[submodule "tools"]
+	path = tools
+	url = https://github.com/WarriorHanamy/vtol-tools.git
+[submodule "vtol_interface"]
 	path = vtol_interface
 	url = https://github.com/WarriorHanamy/vtol-interface.git
 [submodule "linker"]
 	path = linker
 	url = https://github.com/WarriorHanamy/vtol-linker.git
-[submodule "tools"]
-	path = tools
-	url = https://github.com/WarriorHanamy/vtol-tools.git
