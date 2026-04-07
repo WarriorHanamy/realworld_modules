@@ -31,38 +31,43 @@ echo "Host IP: $HOST_IP"
 mkdir -p "$CONFIG_DIR"
 
 # Generate MID360_config.json with correct IPs
+# NOTE: Using NEW format (host_net_info as array) because Livox-SDK2
+# does NOT create data sockets with OLD format (host_net_info as object).
 cat > "$CONFIG_DIR/MID360_config.json" << EOF
 {
-  "lidar_summary_info" : {
+  "lidar_summary_info": {
     "lidar_type": 8
   },
   "MID360": {
-    "lidar_net_info" : {
+    "lidar_net_info": {
       "cmd_data_port": 56100,
       "push_msg_port": 56200,
       "point_data_port": 56300,
       "imu_data_port": 56400,
       "log_data_port": 56500
     },
-    "host_net_info" : {
-      "cmd_data_ip" : "$HOST_IP",
-      "cmd_data_port": 56101,
-      "push_msg_ip": "$HOST_IP",
-      "push_msg_port": 56201,
-      "point_data_ip": "$HOST_IP",
-      "point_data_port": 56301,
-      "imu_data_ip" : "$HOST_IP",
-      "imu_data_port": 56401,
-      "log_data_ip" : "",
-      "log_data_port": 56501
-    }
+    "host_net_info": [
+      {
+        "cmd_data_ip": "$HOST_IP",
+        "cmd_data_port": 56101,
+        "push_msg_ip": "$HOST_IP",
+        "push_msg_port": 56201,
+        "point_data_ip": "$HOST_IP",
+        "point_data_port": 56301,
+        "imu_data_ip": "$HOST_IP",
+        "imu_data_port": 56401,
+        "log_data_ip": "",
+        "log_data_port": 56501,
+        "lidar_ip": ["$LIDAR_IP"]
+      }
+    ]
   },
-  "lidar_configs" : [
+  "lidar_configs": [
     {
-      "ip" : "$LIDAR_IP",
-      "pcl_data_type" : 1,
-      "pattern_mode" : 0,
-      "extrinsic_parameter" : {
+      "ip": "$LIDAR_IP",
+      "pcl_data_type": 1,
+      "pattern_mode": 0,
+      "extrinsic_parameter": {
         "roll": 0.0,
         "pitch": 0.0,
         "yaw": 0.0,

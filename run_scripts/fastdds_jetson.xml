@@ -8,6 +8,7 @@
                 <address>127.0.0.1</address>
                 <address>192.168.55.1</address>
                 <address>192.168.55.100</address>
+                <address>192.168.2.50</address>
             </interfaceWhiteList>
         </transport_descriptor>
 
@@ -45,6 +46,12 @@
                     <locator>
                         <udpv4>
                             <address>192.168.55.100</address>
+                            <port>14900</port>
+                        </udpv4>
+                    </locator>
+                    <locator>
+                        <udpv4>
+                            <address>192.168.2.50</address>
                             <port>14900</port>
                         </udpv4>
                     </locator>
