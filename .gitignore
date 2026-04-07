@@ -17,3 +17,4 @@ vtol_deployment/data/*.db
 vtol_deployment/data/*.txt
 .opencode/
 *.sync-conflict-*
+*audit*
