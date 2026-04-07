@@ -6,6 +6,9 @@ set -eo pipefail
 
 INTERFACE="enP8p1s0"
 LIO_IMAGE="vtol/lio-jetson:latest"
+
+# Cleanup existing containers from same image
+docker ps -a --filter "ancestor=${LIO_IMAGE}" -q | xargs -r docker rm -f 2>/dev/null || true
 CONFIG_DIR="/tmp/livox-config"
 
 # Discover LiDAR IP from ARP cache
@@ -74,6 +77,7 @@ EOF
 docker run --rm \
   --net=host \
   --ipc=host \
+  -e ROS_DOMAIN_ID=30 \
   -v "$CONFIG_DIR/MID360_config.json:/root/ros2_ws/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json:ro" \
   --entrypoint '' \
   "$LIO_IMAGE" \

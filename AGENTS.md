@@ -40,6 +40,15 @@ Device config: `sync_service/.env` (DEVICE_IP, DEVICE_USER, SSH_KEY, etc.)
 - You **can read and rewrite** existing `run_scripts/` files only.
 - If subfolder changes are needed, propose them separately for the subfolder owner.
 
+## ROS2 Domain ID Convention
+
+**Rule**: All ROS2 Docker containers must use `ROS_DOMAIN_ID=30` to ensure consistent domain isolation.
+
+```bash
+# Add to docker run commands:
+-e ROS_DOMAIN_ID=30
+```
+
 ## ROS2 Entrypoint Convention
 
 **Rule**: In every Docker entrypoint script that sources ROS2 setup files, wrap all `source .../setup.bash`
