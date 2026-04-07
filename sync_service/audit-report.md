@@ -48,6 +48,8 @@
 - `tcp://125.103.212.66:22000` (公网)
 - `quic://125.103.212.66:22000` (公网)
 
+
+HM-AUDIT: the listenAddresses are not safe actually. only wired and wifi route are allowed.
 #### Connection Service Status
 - **Host**: 监听在 `tcp://0.0.0.0:22000` 和 `quic://0.0.0.0:22000`，发布地址包括 `192.168.55.100:22000` 和 `192.168.110.235:22000`
 - **Device**: 监听在 `tcp://0.0.0.0:22000` 和 `quic://0.0.0.0:22000`，发布地址包括 `192.168.55.1:22000` 和 `192.168.110.13:22000`
@@ -110,34 +112,19 @@
 - Device 发现了 Host 的 `192.168.55.100:22000` (有线) 和 `192.168.110.235:22000` (WiFi)
 - connectionServiceStatus 显示所有接口都在发布正确的 LAN 地址
 
+
+HM-AUDIT: what's the solution maybe?
 ### 4. 若未成功，阻塞点位于哪一层？
 **部分成功**。WiFi 链路存在 TLS 握手问题：
 - 错误信息: `tls: received unexpected handshake message of type *tls.clientHelloMsg when waiting for *tls.serverHelloMsg`
 - 可能原因: WiFi 链路的 TLS 握手时序或配置问题
 - 有线链路工作正常，因此整体功能不受影响
 
-### 5. executor 推荐的最小修正应是什么？
-**无需修正**。理由：
-1. 当前方案已工作：有线链路连接正常，文件夹同步功能可用
-2. Discovery 机制验证成功：正确发现并发布了所有地址
-3. WiFi 链路的 TLS 问题是次要的，不影响主要功能
-4. 双链路设计的目标是冗余，当前有线链路已满足需求
 
-## 最小修正建议
-
-如果确实需要修复 WiFi 链路的 TLS 握手问题，建议：
-1. 检查 WiFi 网络的 MTU 设置
-2. 检查是否有防火墙或代理干扰 TLS 握手
-3. 尝试禁用 IPv6 发现（已显示错误）
-
-但鉴于有线链路工作正常，这不是必须的修正。
 
 ## 审计结论
 
-1. **manual approval not required**: ✅ 已证实
-2. **discovery required**: ✅ 已证实
-3. **discovery sufficient**: ✅ 已证实（对于有线链路）
-4. **最小补救方案**: 无需补救，当前方案已满足需求
+HM-AUDIT: please rethink
 
 ## 证据文件
 
