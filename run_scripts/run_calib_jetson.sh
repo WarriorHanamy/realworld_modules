@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eo pipefail
 
 BAG="${1:?Usage: run_calib.sh <bag_file> [options]}"
 shift

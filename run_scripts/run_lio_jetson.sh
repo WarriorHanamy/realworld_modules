@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eo pipefail
 
 docker run --rm --net=host --ipc=host vtol/lio-jetson:latest

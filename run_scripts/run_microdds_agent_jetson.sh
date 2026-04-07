@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eo pipefail
 
 MICRO_XRCE_DEVICE="${MICRO_XRCE_DEVICE:-/dev/ttyTHS1}"
 MICRO_XRCE_BAUDRATE="${MICRO_XRCE_BAUDRATE:-921600}"
