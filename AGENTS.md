@@ -24,7 +24,7 @@ Device config: `sync_service/.env` (DEVICE_IP, DEVICE_USER, SSH_KEY, etc.)
 ## Run Scripts Convention
 
 - `run_scripts/` holds entry scripts for the Jetson device.
-- Filename: `run_{service}_{platform}.sh` (platform: `jetson` or `host`)
+- Filename: `run-{platform}-{mode}-{feature}.sh` (platform: `jetson` or `host`, mode: `debug` or `prod`)
 - Each script handles one service.
 - Prefer `tmux_utils.sh` for process lifecycle management when orchestrating multiple services.
 
