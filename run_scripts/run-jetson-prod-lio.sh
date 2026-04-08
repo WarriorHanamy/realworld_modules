@@ -5,9 +5,10 @@ DOCKER_CPUS="6,7"  # orin nx is 0-7
 INTERFACE="enP8p1s0"
 IMAGE="vtol/lio-jetson:latest"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FASTDDS_CONFIG="${SCRIPT_DIR}/fastdds_jetson.xml"
-LIVOX_CONFIG_TEMPLATE="${SCRIPT_DIR}/config_livox_mid360.json"
-FAST_LIO_CONFIG_TEMPLATE="${SCRIPT_DIR}/mid360.yaml"
+CONFIG_DIR="${SCRIPT_DIR}/config"
+FASTDDS_CONFIG="${CONFIG_DIR}/fastdds.xml"
+LIVOX_CONFIG_TEMPLATE="${CONFIG_DIR}/livox_mid360.json"
+FAST_LIO_CONFIG_TEMPLATE="${CONFIG_DIR}/fastlio_mid360.yaml"
 FAST_LIO_IMU_TOPIC="/livox/imu"
 FAST_LIO_EXTRINSIC_T="[ -0.011, -0.02329, 0.04412 ]"
 FAST_LIO_EXTRINSIC_R="[ 1., 0., 0.,
@@ -29,16 +30,16 @@ echo "LiDAR IP: $LIDAR_IP"
 echo "Host IP: $HOST_IP"
 
 # Generate livox config from template
-CONFIG_DIR="/tmp/livox-config"
-mkdir -p "$CONFIG_DIR"
+RUNTIME_CONFIG_DIR="/tmp/livox-config"
+mkdir -p "$RUNTIME_CONFIG_DIR"
 sed -e "s|\$HOST_IP|$HOST_IP|g" \
     -e "s|\$LIDAR_IP|$LIDAR_IP|g" \
-    "$LIVOX_CONFIG_TEMPLATE" > "$CONFIG_DIR/MID360_config.json"
+    "$LIVOX_CONFIG_TEMPLATE" > "$RUNTIME_CONFIG_DIR/livox_mid360.json"
 
 FAST_LIO_IMU_TOPIC="$FAST_LIO_IMU_TOPIC" \
 FAST_LIO_EXTRINSIC_T="$FAST_LIO_EXTRINSIC_T" \
 FAST_LIO_EXTRINSIC_R="$FAST_LIO_EXTRINSIC_R" \
-python3 - "$FAST_LIO_CONFIG_TEMPLATE" "$CONFIG_DIR/mid360.yaml" <<'PY'
+python3 - "$FAST_LIO_CONFIG_TEMPLATE" "$RUNTIME_CONFIG_DIR/fastlio_mid360.yaml" <<'PY'
 from pathlib import Path
 import os
 import sys
@@ -62,10 +63,10 @@ docker run --rm \
   --cpuset-cpus="$DOCKER_CPUS" \
   -e ROS_DOMAIN_ID=30 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
-  -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds_jetson.xml \
-  -v "$CONFIG_DIR/MID360_config.json:/root/ros2_ws/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json:ro" \
-  -v "$CONFIG_DIR/mid360.yaml:/root/ros2_ws/install/fast_lio/share/fast_lio/config/mid360.yaml:ro" \
-  -v "${FASTDDS_CONFIG}:/etc/fastdds/fastdds_jetson.xml:ro" \
+  -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
+  -v "$RUNTIME_CONFIG_DIR/livox_mid360.json:/root/ros2_ws/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json:ro" \
+  -v "$RUNTIME_CONFIG_DIR/fastlio_mid360.yaml:/root/ros2_ws/install/fast_lio/share/fast_lio/config/fastlio_mid360.yaml:ro" \
+  -v "${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro" \
   --entrypoint '' \
   "$IMAGE" \
   bash -c '
@@ -86,5 +87,5 @@ docker run --rm \
     echo "/livox/lidar topic is available"
 
     echo "Starting Fast LIO..."
-    ros2 launch fast_lio mapping.launch.py config_file:=mid360.yaml rviz:=false
+    ros2 launch fast_lio mapping.launch.py config_file:=fastlio_mid360.yaml rviz:=false
 '

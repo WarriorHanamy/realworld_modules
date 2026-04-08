@@ -7,12 +7,13 @@ set -eo pipefail
 INTERFACE="enP8p1s0"
 LIO_IMAGE="vtol/lio-jetson:latest"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FASTDDS_CONFIG="${SCRIPT_DIR}/fastdds_jetson.xml"
-LIVOX_CONFIG_TEMPLATE="${SCRIPT_DIR}/config_livox_mid360.json"
+CONFIG_DIR="${SCRIPT_DIR}/config"
+FASTDDS_CONFIG="${CONFIG_DIR}/fastdds.xml"
+LIVOX_CONFIG_TEMPLATE="${CONFIG_DIR}/livox_mid360.json"
 
 # Cleanup existing containers from same image
 docker ps -a --filter "ancestor=${LIO_IMAGE}" -q | xargs -r docker rm -f 2>/dev/null || true
-CONFIG_DIR="/tmp/livox-config"
+RUNTIME_CONFIG_DIR="/tmp/livox-config"
 
 # Discover LiDAR IP from ARP cache
 LIDAR_IP=$(ip neigh show dev "$INTERFACE" | grep -v "INCOMPLETE" | grep -v "FAILED" | awk '{print $1}' | grep -v "\.255$" | head -1)
@@ -29,7 +30,7 @@ echo "LiDAR IP: $LIDAR_IP"
 echo "Host IP: $HOST_IP"
 
 # Create temporary config directory
-mkdir -p "$CONFIG_DIR"
+mkdir -p "$RUNTIME_CONFIG_DIR"
 
 # Generate MID360_config.json from template with correct IPs
 # NOTE: Using NEW format (host_net_info as array) because Livox-SDK2
@@ -41,7 +42,7 @@ fi
 
 sed -e "s|\$HOST_IP|$HOST_IP|g" \
     -e "s|\$LIDAR_IP|$LIDAR_IP|g" \
-    "$LIVOX_CONFIG_TEMPLATE" > "$CONFIG_DIR/MID360_config.json"
+    "$LIVOX_CONFIG_TEMPLATE" > "$RUNTIME_CONFIG_DIR/livox_mid360.json"
 
 # Run LIO container with bash entrypoint
 docker run --rm \
@@ -49,9 +50,9 @@ docker run --rm \
   --ipc=host \
   -e ROS_DOMAIN_ID=30 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
-  -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds_jetson.xml \
-  -v "$CONFIG_DIR/MID360_config.json:/root/ros2_ws/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json:ro" \
-  -v "${FASTDDS_CONFIG}:/etc/fastdds/fastdds_jetson.xml:ro" \
+  -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
+  -v "$RUNTIME_CONFIG_DIR/livox_mid360.json:/root/ros2_ws/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json:ro" \
+  -v "${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro" \
   --entrypoint '' \
   "$LIO_IMAGE" \
   bash -c 'set +u && source /opt/ros/humble/setup.bash && source /root/ros2_ws/install/setup.bash && set -u && ros2 launch livox_ros_driver2 msg_MID360_launch.py'

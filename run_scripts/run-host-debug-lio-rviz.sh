@@ -2,7 +2,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RVIZ_CONFIG="${SCRIPT_DIR}/../tools/dockerfiles/fastlio.rviz"
+RVIZ_CONFIG="${SCRIPT_DIR}/config/fastlio.rviz"
 
 if [ ! -f "${RVIZ_CONFIG}" ]; then
   echo "Error: RViz config not found: ${RVIZ_CONFIG}" >&2
