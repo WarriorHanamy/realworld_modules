@@ -95,6 +95,60 @@ install_syncthing_device() {
     log_info "Syncthing installed on device"
 }
 
+install_jetson_tools() {
+    log_step "Installing Jetson tools (jtop, nvpmodel) on device..."
+    NV_SSH_EXTRA_OPTS=(-o BatchMode=yes -o ConnectTimeout=30)
+    fn_nv_reset_ssh
+    fn_nv_ensure_ssh
+    
+    # Check if jtop is already installed
+    if "${SSH_CMD[@]}" "command -v jtop" &>/dev/null; then
+        log_info "jtop already installed on device"
+    else
+        log_step "Installing jetson-stats (includes jtop)..."
+        fn_nv_run_remote_sudo_bash "apt update && apt install -y python3-pip && pip3 install -U jetson-stats"
+        log_info "jetson-stats installed"
+    fi
+    
+    # Verify nvpmodel is available
+    if "${SSH_CMD[@]}" "command -v nvpmodel" &>/dev/null; then
+        log_info "nvpmodel already available on device"
+    else
+        log_warn "nvpmodel not found - may need Jetson BSP installed"
+        # Install jetson-stats again to ensure nvpmodel wrapper is available
+        fn_nv_run_remote_sudo_bash "pip3 install -U jetson-stats" 2>/dev/null || true
+    fi
+    
+    log_info "Jetson tools installation complete"
+}
+
+install_jetson_tools() {
+    log_step "Installing Jetson tools (jtop, nvpmodel) on device..."
+    NV_SSH_EXTRA_OPTS=(-o BatchMode=yes -o ConnectTimeout=30)
+    fn_nv_reset_ssh
+    fn_nv_ensure_ssh
+    
+    # Check if jtop is already installed
+    if "${SSH_CMD[@]}" "command -v jtop" &>/dev/null; then
+        log_info "jtop already installed on device"
+    else
+        log_step "Installing jetson-stats (includes jtop)..."
+        fn_nv_run_remote_sudo_bash "apt update && apt install -y python3-pip && pip3 install -U jetson-stats"
+        log_info "jetson-stats installed"
+    fi
+    
+    # Verify nvpmodel is available
+    if "${SSH_CMD[@]}" "command -v nvpmodel" &>/dev/null; then
+        log_info "nvpmodel already available on device"
+    else
+        log_warn "nvpmodel not found - may need Jetson BSP installed"
+        # Install jetson-stats again to ensure nvpmodel wrapper is available
+        fn_nv_run_remote_sudo_bash "pip3 install -U jetson-stats" 2>/dev/null || true
+    fi
+    
+    log_info "Jetson tools installation complete"
+}
+
 ensure_device_sudo() {
     log_step "Ensuring passwordless sudo on device..."
     NV_SSH_EXTRA_OPTS=(-o BatchMode=yes -o ConnectTimeout=30)

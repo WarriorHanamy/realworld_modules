@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 _NV_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_NV_ENV_FILE="${NV_ENV_FILE:-${_NV_COMMON_DIR}/.env}"
+_NV_ENV_FILE="${NV_ENV_FILE:-${_NV_COMMON_DIR}/sync_env}"
 _NV_ENV_LOADED=0
 _NV_SSH_INITIALIZED=0
 
