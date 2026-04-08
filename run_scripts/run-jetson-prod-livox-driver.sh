@@ -8,6 +8,7 @@ INTERFACE="enP8p1s0"
 LIO_IMAGE="vtol/lio-jetson:latest"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FASTDDS_CONFIG="${SCRIPT_DIR}/fastdds_jetson.xml"
+LIVOX_CONFIG_TEMPLATE="${SCRIPT_DIR}/config_livox_mid360.json"
 
 # Cleanup existing containers from same image
 docker ps -a --filter "ancestor=${LIO_IMAGE}" -q | xargs -r docker rm -f 2>/dev/null || true
@@ -30,55 +31,17 @@ echo "Host IP: $HOST_IP"
 # Create temporary config directory
 mkdir -p "$CONFIG_DIR"
 
-# Generate MID360_config.json with correct IPs
+# Generate MID360_config.json from template with correct IPs
 # NOTE: Using NEW format (host_net_info as array) because Livox-SDK2
 # does NOT create data sockets with OLD format (host_net_info as object).
-cat > "$CONFIG_DIR/MID360_config.json" << EOF
-{
-  "lidar_summary_info": {
-    "lidar_type": 8
-  },
-  "MID360": {
-    "lidar_net_info": {
-      "cmd_data_port": 56100,
-      "push_msg_port": 56200,
-      "point_data_port": 56300,
-      "imu_data_port": 56400,
-      "log_data_port": 56500
-    },
-    "host_net_info": [
-      {
-        "cmd_data_ip": "$HOST_IP",
-        "cmd_data_port": 56101,
-        "push_msg_ip": "$HOST_IP",
-        "push_msg_port": 56201,
-        "point_data_ip": "$HOST_IP",
-        "point_data_port": 56301,
-        "imu_data_ip": "$HOST_IP",
-        "imu_data_port": 56401,
-        "log_data_ip": "",
-        "log_data_port": 56501,
-        "lidar_ip": ["$LIDAR_IP"]
-      }
-    ]
-  },
-  "lidar_configs": [
-    {
-      "ip": "$LIDAR_IP",
-      "pcl_data_type": 1,
-      "pattern_mode": 0,
-      "extrinsic_parameter": {
-        "roll": 0.0,
-        "pitch": 0.0,
-        "yaw": 0.0,
-        "x": 0,
-        "y": 0,
-        "z": 0
-      }
-    }
-  ]
-}
-EOF
+if [ ! -f "$LIVOX_CONFIG_TEMPLATE" ]; then
+    echo "ERROR: Livox config template not found: $LIVOX_CONFIG_TEMPLATE"
+    exit 1
+fi
+
+sed -e "s|\$HOST_IP|$HOST_IP|g" \
+    -e "s|\$LIDAR_IP|$LIDAR_IP|g" \
+    "$LIVOX_CONFIG_TEMPLATE" > "$CONFIG_DIR/MID360_config.json"
 
 # Run LIO container with bash entrypoint
 docker run --rm \
