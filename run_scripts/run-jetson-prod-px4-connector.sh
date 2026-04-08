@@ -13,6 +13,7 @@ docker run --rm \
   --ipc=host \
   --privileged \
   -e ROS_DOMAIN_ID=30 \
+  -e XRCE_DOMAIN_ID_OVERRIDE=30 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
   -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds_jetson.xml \
   -v "${FASTDDS_CONFIG}:/etc/fastdds/fastdds_jetson.xml:ro" \
