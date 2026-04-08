@@ -49,6 +49,23 @@ Device config: `sync_service/sync_env` (DEVICE_IP, DEVICE_USER, SSH_KEY, etc.)
 -e ROS_DOMAIN_ID=30
 ```
 
+## Debug Topic Naming Convention
+
+**Rule**: Point cloud topics exported for debug or multi-machine monitoring must use the `/debug/`
+namespace and preserve the source topic suffix.
+
+- Keep the local-critical topics unchanged for the algorithm path.
+- Do not expose raw local-critical point cloud topics directly as the remote debug contract.
+- Publish mirrored or throttled debug point clouds under `/debug/...`.
+
+Examples:
+
+- `/cloud_registered` -> `/debug/cloud_registered`
+- `/cloud_registered_body` -> `/debug/cloud_registered_body`
+- `/cloud_effected` -> `/debug/cloud_effected`
+- `/livox/lidar` debug mirror -> `/debug/livox/lidar`
+- `/livox/lidar` throttled debug mirror -> `/debug/livox/lidar_throttled`
+
 ## ROS2 Entrypoint Convention
 
 **Rule**: In every Docker entrypoint script that sources ROS2 setup files, wrap all `source .../setup.bash`

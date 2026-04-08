@@ -6,13 +6,14 @@ set -eo pipefail
 
 INTERFACE="enP8p1s0"
 LIO_IMAGE="vtol/lio-jetson:latest"
+CONTAINER_NAME="livox-driver-jetson"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${SCRIPT_DIR}/config"
-FASTDDS_CONFIG="${CONFIG_DIR}/fastdds.xml"
+FASTDDS_CONFIG="${CONFIG_DIR}/fastdds-local.xml"
 LIVOX_CONFIG_TEMPLATE="${CONFIG_DIR}/livox_mid360.json"
 
-# Cleanup existing containers from same image
-docker ps -a --filter "ancestor=${LIO_IMAGE}" -q | xargs -r docker rm -f 2>/dev/null || true
+# Cleanup existing container with same name
+docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 RUNTIME_CONFIG_DIR="/tmp/livox-config"
 
 # Discover LiDAR IP from ARP cache
@@ -46,6 +47,7 @@ sed -e "s|\$HOST_IP|$HOST_IP|g" \
 
 # Run LIO container with bash entrypoint
 docker run --rm \
+  --name "${CONTAINER_NAME}" \
   --net=host \
   --ipc=host \
   -e ROS_DOMAIN_ID=30 \

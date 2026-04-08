@@ -4,9 +4,10 @@ set -eo pipefail
 DOCKER_CPUS="6,7"  # orin nx is 0-7
 INTERFACE="enP8p1s0"
 IMAGE="vtol/lio-jetson:latest"
+CONTAINER_NAME="lio-jetson"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${SCRIPT_DIR}/config"
-FASTDDS_CONFIG="${CONFIG_DIR}/fastdds.xml"
+FASTDDS_CONFIG="${CONFIG_DIR}/fastdds-local.xml"
 LIVOX_CONFIG_TEMPLATE="${CONFIG_DIR}/livox_mid360.json"
 FAST_LIO_CONFIG_TEMPLATE="${CONFIG_DIR}/fastlio_mid360.yaml"
 FAST_LIO_IMU_TOPIC="/livox/imu"
@@ -54,10 +55,11 @@ rendered = (
 Path(sys.argv[2]).write_text(rendered)
 PY
 
-# Cleanup existing containers from same image
-docker ps -a --filter "ancestor=${IMAGE}" -q | xargs -r docker rm -f 2>/dev/null || true
+# Cleanup existing container with same name
+docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 
 docker run --rm \
+  --name "${CONTAINER_NAME}" \
   --net=host \
   --ipc=host \
   --cpuset-cpus="$DOCKER_CPUS" \
