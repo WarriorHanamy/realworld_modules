@@ -66,27 +66,17 @@ Examples:
 - `/livox/lidar` debug mirror -> `/debug/livox/lidar`
 - `/livox/lidar` throttled debug mirror -> `/debug/livox/lidar_throttled`
 
-## ROS2 Entrypoint Convention
+## ROS2 Source Convention in Docker Scripts
 
-**Rule**: In every Docker entrypoint script that sources ROS2 setup files, wrap all `source .../setup.bash`
-calls between `set +u` and `set -u`.
+**Rule**: The `set +u`/`set -u` wrapper is only needed for `docker run` (new container).
+For `docker exec` (attaching to existing container), use `&&` chaining directly.
 
 ```bash
-#!/bin/bash
-set -eo pipefail
+# docker run - new container, needs set +u/set -u
+docker run --rm -it IMAGE \
+  bash -c 'set +u; source /opt/ros/humble/setup.bash; set -u; exec bash'
 
-# ROS2 setup.bash references unbound variables (e.g. AMENT_TRACE_SETUP_FILES).
-# Temporarily disable nounset around sourcing to avoid "unbound variable" errors.
-set +u
-source /opt/ros/humble/setup.bash
-
-WS_SETUP="${WS_DIR:-/root/ros2_ws}/install/setup.bash"
-if [ -f "$WS_SETUP" ]; then
-    source "$WS_SETUP"
-fi
-set -u
-
-exec "$@"
+# docker exec - existing container, use && chaining
+docker exec -it CONTAINER \
+  bash -c 'source /opt/ros/humble/setup.bash && source /root/ws/install/setup.bash && exec bash'
 ```
-
-Applies to ROS2 (humble, iron, jazzy, rolling) but **not** ROS1 (noetic), which does not have this issue.

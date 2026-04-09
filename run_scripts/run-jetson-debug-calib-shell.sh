@@ -1,16 +1,14 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE="ros:humble-ros-base"
-FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds.xml"
+IMAGE="vtol/calib-lidar-imu-init-jetson:latest"
 
 # Find running container from this image
 CONTAINER_NAME=$(docker ps --filter "ancestor=${IMAGE}" --filter "status=running" --format "{{.Names}}" | head -1)
 
 if [ -z "${CONTAINER_NAME}" ]; then
   echo "Error: No running container found for image ${IMAGE}"
-  echo "Please start a ros2 container first."
+  echo "Please start the calib service first: ./run_scripts/run-jetson-prod-calib.sh <bag_file>"
   exit 1
 fi
 
@@ -21,4 +19,4 @@ docker exec -it \
   --env RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
   --env FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
   "${CONTAINER_NAME}" \
-  bash -c 'source /opt/ros/humble/setup.bash && exec bash'
+  bash -c 'source /opt/ros/humble/setup.bash && source /root/ros2_ws/install/setup.bash && exec bash'
