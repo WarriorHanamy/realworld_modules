@@ -228,11 +228,11 @@ generate_syncthing_config_device() {
 }
 
 setup_syncthing_host() {
-    log_step "Reinitializing Syncthing on host..."
-    
+    log_step "Setting up Syncthing on host..."
+
     mkdir -p "${HOME}/.config/syncthing"
     mkdir -p "${HOST_SOURCE_FOLDER}"
-    
+
     systemctl --user stop syncthing.service 2>/dev/null || true
 
     # Remove legacy override that points --home to a different directory
@@ -243,42 +243,54 @@ setup_syncthing_host() {
         log_info "Removed legacy syncthing service override"
     fi
 
-    rm -f "${HOME}/.config/syncthing/config.xml" "${HOME}/.config/syncthing/cert.pem" "${HOME}/.config/syncthing/key.pem"
-    generate_syncthing_config_host "${HOME}/.config/syncthing"
-    
+    # Only generate config if it doesn't exist (preserve existing to keep device ID stable)
+    if [[ ! -f "${HOME}/.config/syncthing/config.xml" ]]; then
+        log_info "Generating fresh Syncthing config..."
+        rm -f "${HOME}/.config/syncthing/cert.pem" "${HOME}/.config/syncthing/key.pem"
+        generate_syncthing_config_host "${HOME}/.config/syncthing"
+    else
+        log_info "Existing Syncthing config found - preserving device ID"
+    fi
+
     local host_config="${HOME}/.config/syncthing/config.xml"
     local host_id
     host_id=$(get_device_id "$host_config")
-    
+
     echo "Host Device ID: ${host_id}"
     echo "${host_id}" > "${CONFIG_DIR}/host-id.txt"
-    
+
     log_info "Host Syncthing configured"
 }
 
 setup_syncthing_device() {
-    log_step "Reinitializing Syncthing on device..."
+    log_step "Setting up Syncthing on device..."
     NV_SSH_EXTRA_OPTS=(-o BatchMode=yes -o ConnectTimeout=30)
     fn_nv_reset_ssh
     fn_nv_ensure_ssh
-    
+
     "${SSH_CMD[@]}" "mkdir -p ~/.config/syncthing"
     "${SSH_CMD[@]}" "mkdir -p '${DEVICE_TARGET_FOLDER}'"
-    
+
     "${SSH_CMD[@]}" "systemctl --user stop syncthing.service 2>/dev/null || true"
 
     # Remove legacy override that points --home to a different directory
     "${SSH_CMD[@]}" "rm -f ~/.config/systemd/user/syncthing.service.d/override.conf && systemctl --user daemon-reload 2>/dev/null || true"
 
-    "${SSH_CMD[@]}" "rm -f ~/.config/syncthing/config.xml ~/.config/syncthing/cert.pem ~/.config/syncthing/key.pem"
-    generate_syncthing_config_device "~/.config/syncthing"
-    
+    # Only generate config if it doesn't exist (preserve existing to keep device ID stable)
+    if "${SSH_CMD[@]}" "test -f ~/.config/syncthing/config.xml"; then
+        log_info "Existing device Syncthing config found - preserving device ID"
+    else
+        log_info "Generating fresh Syncthing config on device..."
+        "${SSH_CMD[@]}" "rm -f ~/.config/syncthing/cert.pem ~/.config/syncthing/key.pem"
+        generate_syncthing_config_device "~/.config/syncthing"
+    fi
+
     local device_id
     device_id=$("${SSH_CMD[@]}" "grep -oP '(?<=<device id=\")[^\"]+' ~/.config/syncthing/config.xml | head -1")
-    
+
     echo "Device ID: ${device_id}"
     echo "${device_id}" > "${CONFIG_DIR}/device-id.txt"
-    
+
     log_info "Device Syncthing configured"
 }
 
@@ -766,6 +778,21 @@ show_status() {
     echo ""
 }
 
+start_syncthing_both() {
+    log_step "Starting Syncthing on host and device..."
+
+    systemctl --user start syncthing
+    log_info "Host Syncthing started"
+
+    NV_SSH_EXTRA_OPTS=(-o BatchMode=yes -o ConnectTimeout=30)
+    fn_nv_reset_ssh
+    fn_nv_ensure_ssh
+
+    "${SSH_CMD[@]}" "systemctl --user start syncthing" && \
+        log_info "Device Syncthing started" || \
+        log_warn "Failed to start Syncthing on device"
+}
+
 show_help() {
     cat << EOF
 Usage: $0 [OPTIONS]
@@ -869,6 +896,8 @@ main() {
     configure_device_autorevert
     enable_services
     show_status
+    sleep 5
+    start_syncthing_both
 }
 
 main "$@"
