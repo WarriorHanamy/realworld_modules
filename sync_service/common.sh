@@ -5,6 +5,10 @@ _NV_ENV_FILE="${NV_ENV_FILE:-${_NV_COMMON_DIR}/sync_env}"
 _NV_ENV_LOADED=0
 _NV_SSH_INITIALIZED=0
 
+# Mirror configuration (override via env if needed)
+APT_MIRROR="${APT_MIRROR:-mirrors.ustc.edu.cn}"
+DOCKER_APT_MIRROR="${DOCKER_APT_MIRROR:-mirrors.ustc.edu.cn}"
+
 fn_nv_log_info() {
   if [[ "${NV_LOG_LEVEL:-info}" == "silent" ]]; then
     return 0
@@ -141,5 +145,5 @@ fn_nv_setup_apt_sources() {
   fn_nv_load_env
   fn_nv_ensure_ssh
   fn_nv_log_info "setting up apt sources on ${SSH_TARGET}"
-  fn_nv_run_remote_sudo_bash "find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|http://ports.ubuntu.com/ubuntu-ports|https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports|g' {} + && find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|https://mirrors.aliyun.com/ubuntu-ports|https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports|g' {} + && find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|https://download.docker.com/linux/ubuntu|https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/ubuntu|g' {} + && printf '%s\n' 'Acquire::ForceIPv4 \"true\";' > /etc/apt/apt.conf.d/99force-ipv4 && printf 'Acquire::http::Proxy \"http://${HOST_IP}:${HOST_PROXY_PORT}/\";\nAcquire::https::Proxy \"http://${HOST_IP}:${HOST_PROXY_PORT}/\";\n' > /etc/apt/apt.conf.d/99proxy && apt update"
+  fn_nv_run_remote_sudo_bash "find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|http://ports.ubuntu.com/ubuntu-ports|http://${APT_MIRROR}/ubuntu-ports|g' {} + && find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|https://mirrors.aliyun.com/ubuntu-ports|http://${APT_MIRROR}/ubuntu-ports|g' {} + && find /etc/apt -type f \\( -name '*.list' -o -name '*.sources' \\) -exec sed -i 's|https://download.docker.com/linux/ubuntu|http://${DOCKER_APT_MIRROR}/docker-ce/linux/ubuntu|g' {} + && printf '%s\n' 'Acquire::ForceIPv4 \"true\";' > /etc/apt/apt.conf.d/99force-ipv4 && printf 'Acquire::http::Proxy \"http://${HOST_IP}:${HOST_PROXY_PORT}/\";\nAcquire::https::Proxy \"http://${HOST_IP}:${HOST_PROXY_PORT}/\";\n' > /etc/apt/apt.conf.d/99proxy && apt update"
 }
