@@ -20,6 +20,10 @@ fn_tmux_win_idx() {
   tmux show-option -g base-index 2>/dev/null | awk '{print $NF}'
 }
 
+fn_tmux_pane_idx() {
+  tmux show-option -g pane-base-index 2>/dev/null | awk '{print $NF}'
+}
+
 fn_tmux__target_for_window() {
   # Resolve a window target string for tmux commands.
   # $1 = session, $2 = window name or index
@@ -105,12 +109,14 @@ fn_tmux_window_exists() {
 
 fn_tmux_pane_run() {
   # Send a command to a specific pane within a window.
-  # Default pane is 0 (first pane in the window).
+  # Default pane follows tmux pane-base-index.
   #
-  # Usage: fn_tmux_pane_run <session> <window> [pane=0] <command>
+  # Usage: fn_tmux_pane_run <session> <window> [pane=<base-index>] <command>
   local session="${1:?session required}"
   local win="${2:?window required}"
-  local pane="${3:-0}"
+  local default_pane
+  default_pane=$(fn_tmux_pane_idx)
+  local pane="${3:-$default_pane}"
   shift 3 || true
   tmux send-keys -t "${session}:${win}.${pane}" "$*" Enter
 }
@@ -119,10 +125,12 @@ fn_tmux_pane_run_bash() {
   # Send a bash script (single line) to a specific pane.
   # Internally uses `bash -lc` so the script runs inside a login shell.
   #
-  # Usage: fn_tmux_pane_run_bash <session> <window> [pane=0] <script_string>
+  # Usage: fn_tmux_pane_run_bash <session> <window> [pane=<base-index>] <script_string>
   local session="${1:?session required}"
   local win="${2:?window required}"
-  local pane="${3:-0}"
+  local default_pane
+  default_pane=$(fn_tmux_pane_idx)
+  local pane="${3:-$default_pane}"
   local script="${4:?script required}"
   local command
   printf -v command 'bash -lc %q' "$script"
@@ -133,10 +141,12 @@ fn_tmux_pane_run_heredoc() {
   # Send a multi-line bash script to a pane using a heredoc-friendly approach.
   # The caller provides a bash script string that may contain newlines.
   #
-  # Usage: fn_tmux_pane_run_heredoc <session> <window> [pane=0] <multiline_script>
+  # Usage: fn_tmux_pane_run_heredoc <session> <window> [pane=<base-index>] <multiline_script>
   local session="${1:?session required}"
   local win="${2:?window required}"
-  local pane="${3:-0}"
+  local default_pane
+  default_pane=$(fn_tmux_pane_idx)
+  local pane="${3:-$default_pane}"
   local script="${4:?script required}"
   # Use printf to safely quote the script as a single argument to `bash -lc`
   local command
@@ -147,20 +157,24 @@ fn_tmux_pane_run_heredoc() {
 fn_tmux_split_h() {
   # Split a pane horizontally. Operates on the given window and pane.
   #
-  # Usage: fn_tmux_split_h <session> <window> [pane=0]
+  # Usage: fn_tmux_split_h <session> <window> [pane=<base-index>]
   local session="${1:?session required}"
   local win="${2:?window required}"
-  local pane="${3:-0}"
+  local default_pane
+  default_pane=$(fn_tmux_pane_idx)
+  local pane="${3:-$default_pane}"
   tmux split-window -h -t "${session}:${win}.${pane}"
 }
 
 fn_tmux_split_v() {
   # Split a pane vertically. Operates on the given window and pane.
   #
-  # Usage: fn_tmux_split_v <session> <window> [pane=0]
+  # Usage: fn_tmux_split_v <session> <window> [pane=<base-index>]
   local session="${1:?session required}"
   local win="${2:?window required}"
-  local pane="${3:-0}"
+  local default_pane
+  default_pane=$(fn_tmux_pane_idx)
+  local pane="${3:-$default_pane}"
   tmux split-window -v -t "${session}:${win}.${pane}"
 }
 
@@ -177,7 +191,7 @@ fn_tmux_window_create_and_run() {
   local win="${2:?window required}"
   local cmd="${3:?command required}"
   fn_tmux_window_new "$session" "$win"
-  fn_tmux_pane_run "$session" "$win" 0 "$cmd"
+  fn_tmux_pane_run "$session" "$win" "" "$cmd"
 }
 
 fn_tmux_window_create_and_run_bash() {
@@ -188,7 +202,7 @@ fn_tmux_window_create_and_run_bash() {
   local win="${2:?window required}"
   local script="${3:?script required}"
   fn_tmux_window_new "$session" "$win"
-  fn_tmux_pane_run_bash "$session" "$win" 0 "$script"
+  fn_tmux_pane_run_bash "$session" "$win" "" "$script"
 }
 
 # -----------------------------------------------------------------------------

@@ -75,9 +75,10 @@ imu_sender_cmd="docker run --rm --network host --ipc host --privileged \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
   -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
   -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
+  -v /tmp:/tmp \
   ${PX4_IMAGE} \
   bash -c 'set +u; source /opt/ros/humble/setup.bash; source /root/px4_connector_ws/install/setup.bash; set -u; ros2 launch imu_bridge sender.launch.py'"
-fn_tmux_pane_run "$SESSION" "imu-sender" 0 "$imu_sender_cmd"
+fn_tmux_pane_run "$SESSION" "imu-sender" "" "$imu_sender_cmd"
 
 # Window 2: Calibration (bag playback or live sensor)
 fn_tmux_window_new "$SESSION" "calibration"
@@ -93,16 +94,18 @@ if [[ -n "$BAG_FILE" ]]; then
   calib_cmd="docker run --rm --network host --ipc host \
     -e ROS_DOMAIN_ID=30 \
     -v ${DATA_DIR}:/data:rw \
+    -v /tmp:/tmp \
     ${CALIB_IMAGE} \
     /usr/local/bin/calib_run.sh /data/${BAG_NAME}"
-  fn_tmux_pane_run "$SESSION" "calibration" 0 "$calib_cmd"
+  fn_tmux_pane_run "$SESSION" "calibration" "" "$calib_cmd"
 else
   # Live mode: calibration node directly (roscore + imu_receiver + li_init)
   calib_cmd="docker run --rm --network host --ipc host \
     -e ROS_DOMAIN_ID=30 \
+    -v /tmp:/tmp \
     ${CALIB_IMAGE} \
     bash -c 'source /opt/ros/noetic/setup.bash && source /root/catkin_ws/devel/setup.bash && LAUNCH_FILE=\"/root/catkin_ws/src/LiDAR_IMU_Init/launch/calib_with_imu.launch\" && if [ ! -f \"\$LAUNCH_FILE\" ]; then cp /dockerfiles/calib_with_imu.launch \"\$LAUNCH_FILE\"; fi && roscore & sleep 3 && roslaunch lidar_imu_init calib_with_imu.launch rviz:=false'"
-  fn_tmux_pane_run "$SESSION" "calibration" 0 "$calib_cmd"
+  fn_tmux_pane_run "$SESSION" "calibration" "" "$calib_cmd"
 fi
 
 # Window 3: Monitor + result tail
