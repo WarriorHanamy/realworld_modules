@@ -54,6 +54,27 @@ fn_tmux_session_kill() {
   tmux kill-session -t "$session" 2>/dev/null || true
 }
 
+fn_tmux_session_safe_start() {
+  # Kill an existing session and wait until it is fully gone, then create
+  # a fresh one.  This prevents "index N in use" errors caused by a
+  # partially-destroyed old session lingering during the re-create window.
+  #
+  # Usage: fn_tmux_session_safe_start <session_name>
+  local session="${1:?session required}"
+  tmux kill-session -t "$session" 2>/dev/null || true
+  local i=0
+  while tmux has-session -t "$session" 2>/dev/null; do
+    sleep 0.1
+    ((i++))
+    if (( i > 50 )); then          # 5 s safety timeout
+      echo "WARNING: session '$session' did not die, force killing"
+      tmux kill-server 2>/dev/null || true
+      break
+    fi
+  done
+  tmux new-session -d -s "$session" -x 200 -y 50 -n main
+}
+
 # -----------------------------------------------------------------------------
 # Window management (named windows)
 # -----------------------------------------------------------------------------

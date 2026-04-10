@@ -18,8 +18,11 @@ fi
 # shellcheck source=/dev/null
 source "$TMUX_UTILS"
 
-SESSION="calib"
+SESSION="jetson-debug-calib"
 IMAGE="vtol/calib-lidar-imu-init-jetson:latest"
+INTERFACE="enP8p1s0"
+LIVOX_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/livox_mid360.json"
+LIVOX_CONFIG_CONTAINER="/root/catkin_ws/src/livox_ros_driver2/config/MID360_config.json"
 
 # Parse arguments
 BAG_FILE=""
@@ -45,11 +48,12 @@ fi
 docker ps -a --filter "ancestor=${IMAGE}" -q | xargs -r docker stop 2>/dev/null || true
 docker ps -a --filter "ancestor=${IMAGE}" -q | xargs -r docker rm 2>/dev/null || true
 
-# Cleanup old tmux session
-fn_tmux_session_kill "$SESSION"
+# Kill host-side rosmaster so container can bind port 11311
+pkill -f rosmaster 2>/dev/null || true
+pkill -f roscore 2>/dev/null || true
 
-# Start tmux session
-fn_tmux_session_start "$SESSION"
+# Clean up old session and start fresh
+fn_tmux_session_safe_start "$SESSION"
 
 # Window 1: Launch calibration container (bag or live)
 fn_tmux_window_new "$SESSION" "calibration"
@@ -70,12 +74,25 @@ if [[ -n "$BAG_FILE" ]]; then
     /usr/local/bin/calib_run.sh /data/${BAG_NAME}"
   fn_tmux_pane_run "$SESSION" "calibration" "" "$calib_cmd"
 else
-  # Live mode
+  # Live mode: discover LiDAR/Host IPs, generate config, start full stack
+  RUNTIME_CONFIG_DIR="/tmp/calib-livox-config"
+  mkdir -p "$RUNTIME_CONFIG_DIR"
+  HOST_IP=$(ip addr show dev "$INTERFACE" 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1)
+  LIDAR_IP=$(ip neigh show dev "$INTERFACE" 2>/dev/null | grep -v "INCOMPLETE" | grep -v "FAILED" | awk '{print $1}' | grep -v "\.255$" | head -1)
+  if [[ -z "$HOST_IP" || -z "$LIDAR_IP" ]]; then
+    echo "ERROR: Could not discover IPs on $INTERFACE (HOST_IP=${HOST_IP:-<empty>} LIDAR_IP=${LIDAR_IP:-<empty>})"
+    exit 1
+  fi
+  echo "LiDAR IP: $LIDAR_IP  Host IP: $HOST_IP"
+  sed -e "s|\\\$HOST_IP|${HOST_IP}|g" \
+      -e "s|\\\$LIDAR_IP|${LIDAR_IP}|g" \
+      "$LIVOX_CONFIG_TEMPLATE" > "$RUNTIME_CONFIG_DIR/livox_mid360.json"
   calib_cmd="docker run --rm --network host --ipc host \
     -e ROS_DOMAIN_ID=30 \
+    -v ${RUNTIME_CONFIG_DIR}/livox_mid360.json:${LIVOX_CONFIG_CONTAINER}:ro \
     -v /tmp:/tmp \
     ${IMAGE} \
-    bash -c 'source /opt/ros/noetic/setup.bash && source /root/catkin_ws/devel/setup.bash && LAUNCH_FILE=\"/root/catkin_ws/src/LiDAR_IMU_Init/launch/calib_with_imu.launch\" && if [ ! -f \"\$LAUNCH_FILE\" ]; then cp /dockerfiles/calib_with_imu.launch \"\$LAUNCH_FILE\"; fi && roscore & sleep 3 && roslaunch lidar_imu_init calib_with_imu.launch rviz:=false'"
+    bash -c 'source /opt/ros/noetic/setup.bash && source /root/catkin_ws/devel/setup.bash && pkill -f rosmaster 2>/dev/null || true; sleep 1 && roslaunch lidar_imu_init livox_mid360_integrated.launch use_rviz:=false & sleep 5 && rosrun imu_bridge_ros1 imu_receiver_node _socket_path:=/tmp/imu_bridge.sock _publish_topic:=/mavros/imu/data_raw'"
   fn_tmux_pane_run "$SESSION" "calibration" "" "$calib_cmd"
 fi
 

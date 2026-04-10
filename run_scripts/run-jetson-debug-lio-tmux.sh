@@ -18,7 +18,7 @@ fi
 # shellcheck source=/dev/null
 source "$TMUX_UTILS"
 
-SESSION="lio"
+SESSION="jetson-debug-lio"
 IMAGE="vtol/lio-jetson:latest"
 FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml"
 
@@ -38,11 +38,8 @@ fi
 docker ps -a --filter "ancestor=${IMAGE}" -q | xargs -r docker stop 2>/dev/null || true
 docker ps -a --filter "ancestor=${IMAGE}" -q | xargs -r docker rm 2>/dev/null || true
 
-# Cleanup old tmux session
-fn_tmux_session_kill "$SESSION"
-
-# Start tmux session
-fn_tmux_session_start "$SESSION"
+# Clean up old session and start fresh
+fn_tmux_session_safe_start "$SESSION"
 
 # Window 1: Launch lio container (FastLIO + Livox driver)
 fn_tmux_window_new "$SESSION" "lio"

@@ -18,7 +18,7 @@ fi
 # shellcheck source=/dev/null
 source "$TMUX_UTILS"
 
-SESSION="px4-connector"
+SESSION="jetson-debug-px4-connector"
 IMAGE="vtol/px4-connector-jetson:latest"
 FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml"
 
@@ -38,11 +38,8 @@ fi
 docker ps -a --filter "ancestor=${IMAGE}" -q | xargs -r docker stop 2>/dev/null || true
 docker ps -a --filter "ancestor=${IMAGE}" -q | xargs -r docker rm 2>/dev/null || true
 
-# Cleanup old tmux session
-fn_tmux_session_kill "$SESSION"
-
-# Start tmux session
-fn_tmux_session_start "$SESSION"
+# Clean up old session and start fresh
+fn_tmux_session_safe_start "$SESSION"
 
 # Window 1: Launch px4-connector container
 fn_tmux_window_new "$SESSION" "px4-connector"
@@ -66,7 +63,7 @@ fn_tmux_window_create_and_run_bash "$SESSION" "px4-shell" "$shell_script"
 # Select px4-connector window
 fn_tmux_window_select "$SESSION" "px4-connector"
 
-echo "Session '$SESSION' created."
+echo "Session '$SESSION' started."
 echo "  Window 1: px4-connector (running)"
 echo "  Window 2: px4-shell (exec with ROS2 sourced)"
 echo ""
