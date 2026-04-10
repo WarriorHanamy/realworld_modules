@@ -149,7 +149,7 @@ fn_tmux_window_create_and_run_bash "$SESSION" "monitor" "$monitor_script"
 # Window 4: Exec into calib container (bash)
 calib_shell_script="echo \"Waiting for calib container...\" &&
 until CONTAINER_ID=\$(docker ps -q --filter ancestor=${CALIB_IMAGE}); do sleep 1; done &&
-docker exec -it \$CONTAINER_ID bash"
+docker exec -it \$CONTAINER_ID bash -c'source /opt/ros/noetic/setup.bash && source /root/catkin_ws/devel/setup.bash && exec bash'"
 fn_tmux_window_create_and_run_bash "$SESSION" "calib-shell" "$calib_shell_script"
 
 # Select calibration window for attention
