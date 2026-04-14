@@ -26,6 +26,10 @@ FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml"
 INTERFACE="enP8p1s0"
 LIVOX_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/livox_mid360.json"
 LIVOX_CONFIG_CONTAINER="/root/catkin_ws/src/livox_ros_driver2/config/MID360_config.json"
+FAST_LIO_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/fastlio_mid360.yaml"
+FAST_LIO_IMU_TOPIC="/livox/imu"
+FAST_LIO_EXTRINSIC_T="[ -0.03, 0.0, 0.09 ]"
+FAST_LIO_EXTRINSIC_R="[ 0.0, 0.9681, 0.2504, -1.0, 0.0, 0.0, 0.0, -0.2504, 0.9681 ]"
 
 # Validate config file
 if [[ ! -f "$FASTDDS_CONFIG" ]]; then
@@ -73,6 +77,40 @@ docker ps -a --filter "ancestor=${LIO_IMAGE}" -q | xargs -r docker rm 2>/dev/nul
 docker ps -a --filter "ancestor=${CALIB_IMAGE}" -q | xargs -r docker stop 2>/dev/null || true
 docker ps -a --filter "ancestor=${CALIB_IMAGE}" -q | xargs -r docker rm 2>/dev/null || true
 
+# Generate runtime config files
+RUNTIME_CONFIG_DIR="/tmp/linker-integrated-config"
+mkdir -p "$RUNTIME_CONFIG_DIR"
+
+# Generate Livox config (for calibration window)
+HOST_IP=$(ip addr show dev "$INTERFACE" 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1)
+LIDAR_IP=$(ip neigh show dev "$INTERFACE" 2>/dev/null | grep -v "INCOMPLETE" | grep -v "FAILED" | awk '{print $1}' | grep -v "\.255$" | head -1)
+if [[ -z "$HOST_IP" || -z "$LIDAR_IP" ]]; then
+  echo "WARNING: Could not discover IPs on $INTERFACE, using defaults"
+  HOST_IP="${HOST_IP:-192.168.55.100}"
+  LIDAR_IP="${LIDAR_IP:-192.168.55.1}"
+fi
+sed -e "s|\$HOST_IP|${HOST_IP}|g" \
+    -e "s|\$LIDAR_IP|${LIDAR_IP}|g" \
+    "$LIVOX_CONFIG_TEMPLATE" > "$RUNTIME_CONFIG_DIR/livox_mid360.json"
+
+# Generate Fast LIO config with specified extrinsics
+FAST_LIO_IMU_TOPIC="$FAST_LIO_IMU_TOPIC" \
+FAST_LIO_EXTRINSIC_T="$FAST_LIO_EXTRINSIC_T" \
+FAST_LIO_EXTRINSIC_R="$FAST_LIO_EXTRINSIC_R" \
+python3 - "$FAST_LIO_CONFIG_TEMPLATE" "$RUNTIME_CONFIG_DIR/fastlio_mid360.yaml" <<'PY'
+from pathlib import Path
+import os
+import sys
+template = Path(sys.argv[1]).read_text()
+rendered = (
+    template
+    .replace("$FAST_LIO_IMU_TOPIC", os.environ["FAST_LIO_IMU_TOPIC"])
+    .replace("$FAST_LIO_EXTRINSIC_T", os.environ["FAST_LIO_EXTRINSIC_T"])
+    .replace("$FAST_LIO_EXTRINSIC_R", os.environ["FAST_LIO_EXTRINSIC_R"])
+)
+Path(sys.argv[2]).write_text(rendered)
+PY
+
 # Kill host-side rosmaster so container can bind port 11311
 pkill -f rosmaster 2>/dev/null || true
 pkill -f roscore 2>/dev/null || true
@@ -103,9 +141,23 @@ lio_cmd="docker run --rm --network host --ipc host --privileged \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
   -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
   -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
+  -v ${RUNTIME_CONFIG_DIR}/fastlio_mid360.yaml:/root/ros2_ws/install/fast_lio/share/fast_lio/config/fastlio_mid360.yaml:ro \
   -v /tmp:/tmp \
   ${LIO_IMAGE} \
-  bash -c 'set +u; source /opt/ros/humble/setup.bash; source /root/ros2_ws/install/setup.bash; set -u; ros2 launch livox_ros_driver2 ros2_ros__init.launch.py && ros2 launch fast_lio mapping_ros2.launch'"
+  bash -c 'set -eo pipefail; set +u; \
+    source /opt/ros/humble/setup.bash; \
+    source /root/ros2_ws/install/setup.bash; \
+    set -u; \
+    echo \"Starting Livox driver...\"; \
+    ros2 launch livox_ros_driver2 msg_MID360_launch.py & \
+    DRIVER_PID=\$!; \
+    echo \"Waiting for /livox/lidar topic...\"; \
+    until ros2 topic list 2>/dev/null | grep -q \"/livox/lidar\"; do \
+      sleep 1; \
+    done; \
+    echo \"/livox/lidar topic is available\"; \
+    echo \"Starting Fast LIO...\"; \
+    ros2 launch fast_lio mapping.launch.py config_file:=fastlio_mid360.yaml rviz:=false'"
 fn_tmux_pane_run "$SESSION" "lio" "" "$lio_cmd"
 
 # =============================================================================
@@ -129,19 +181,11 @@ if [[ -n "$BAG_FILE" ]]; then
     /usr/local/bin/calib_run.sh /data/${BAG_NAME}"
   fn_tmux_pane_run "$SESSION" "calibration" "" "$calib_cmd"
 else
-  # Live mode: discover LiDAR/Host IPs, generate config, start full stack
-  RUNTIME_CONFIG_DIR="/tmp/linker-integrated-livox-config"
-  mkdir -p "$RUNTIME_CONFIG_DIR"
-  HOST_IP=$(ip addr show dev "$INTERFACE" 2>/dev/null | grep "inet " | awk '{print $2}' | cut -d/ -f1)
-  LIDAR_IP=$(ip neigh show dev "$INTERFACE" 2>/dev/null | grep -v "INCOMPLETE" | grep -v "FAILED" | awk '{print $1}' | grep -v "\.255$" | head -1)
-  if [[ -z "$HOST_IP" || -z "$LIDAR_IP" ]]; then
-    echo "ERROR: Could not discover IPs on $INTERFACE (HOST_IP=${HOST_IP:-<empty>} LIDAR_IP=${LIDAR_IP:-<empty>})"
+  # Live mode: use pre-generated config (IP discovery done above)
+  if [[ ! -f "$RUNTIME_CONFIG_DIR/livox_mid360.json" ]]; then
+    echo "ERROR: Livox config not found: $RUNTIME_CONFIG_DIR/livox_mid360.json"
     exit 1
   fi
-  echo "LiDAR IP: $LIDAR_IP  Host IP: $HOST_IP"
-  sed -e "s|\\\$HOST_IP|${HOST_IP}|g" \
-      -e "s|\\\$LIDAR_IP|${LIDAR_IP}|g" \
-      "$LIVOX_CONFIG_TEMPLATE" > "$RUNTIME_CONFIG_DIR/livox_mid360.json"
   calib_cmd="docker run --rm --network host --ipc host \
     -e ROS_DOMAIN_ID=30 \
     -v ${RUNTIME_CONFIG_DIR}/livox_mid360.json:${LIVOX_CONFIG_CONTAINER}:ro \
@@ -159,13 +203,13 @@ echo "=== Linker Integrated Monitor ===" &&
 echo "" &&
 echo "Services:" &&
 echo "  [1] px4-connector: ROS2 IMU bridge (PX4 → /tmp/imu_bridge.sock)" &&
-echo "  [2] lio: FastLIO + Livox Mid-360 driver" &&
+echo "  [2] lio: Livox driver → (wait for /livox/lidar) → Fast LIO" &&
 echo "  [3] calibration: LiDAR-IMU initialization (ROS1)" &&
 echo "" &&
 echo "--- Container status ---" &&
-echo "PX4 container: \$(docker ps -q --filter ancestor=vtol/px4-connector-jetson:latest | head -1 | xargs -I{} echo {})" &&
-echo "LIO container: \$(docker ps -q --filter ancestor=vtol/lio-jetson:latest | head -1 | xargs -I{} echo {})" &&
-echo "Calib container: \$(docker ps -q --filter ancestor=vtol/calib-lidar-imu-init-jetson:latest | head -1 | xargs -I{} echo {})" &&
+echo "PX4 container: $(docker ps -q --filter ancestor=vtol/px4-connector-jetson:latest | head -1 | xargs -I{} echo {})" &&
+echo "LIO container: $(docker ps -q --filter ancestor=vtol/lio-jetson:latest | head -1 | xargs -I{} echo {})" &&
+echo "Calib container: $(docker ps -q --filter ancestor=vtol/calib-lidar-imu-init-jetson:latest | head -1 | xargs -I{} echo {})" &&
 echo "" &&
 echo "--- ROS2 topics (ROS2) ---" &&
 echo "PX4 IMU: /imu_raw" &&
@@ -174,7 +218,7 @@ echo "" &&
 echo "--- Real-time calib result (auto-refresh 2s) ---" &&
 while true; do
   if [ -f /root/catkin_ws/src/LiDAR_IMU_Init/result/Initialization_result.txt ]; then
-    echo "--- \$(date '+%H:%M:%S') ---"
+    echo "--- $(date '+%H:%M:%S') ---"
     cat /root/catkin_ws/src/LiDAR_IMU_Init/result/Initialization_result.txt
   else
     echo "Waiting for result file..."
@@ -216,7 +260,7 @@ fn_tmux_window_select "$SESSION" "px4-connector"
 # fn_tmux_attach "$SESSION"
 echo "Session '$SESSION' started with 7 windows:"
 echo "  1. px4-connector  - PX4 -> ROS2 IMU bridge"
-echo "  2. lio            - FastLIO + Livox driver"
+echo "  2. lio            - Livox driver → wait /livox/lidar → Fast LIO (fastlio_mid360.yaml)"
 echo "  3. calibration    - LiDAR-IMU initialization"
 echo "  4. monitor        - Status & result tail"
 echo "  5. px4-shell      - Exec into px4-connector container (ROS2 sourced)"
