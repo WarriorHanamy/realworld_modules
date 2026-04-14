@@ -67,7 +67,7 @@ docker run --rm \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
   -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
   -v "$RUNTIME_CONFIG_DIR/livox_mid360.json:/root/ros2_ws/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json:ro" \
-  -v "$RUNTIME_CONFIG_DIR/fastlio_mid360.yaml:/root/ros2_ws/install/fast_lio/share/fast_lio/config/fastlio_mid360.yaml:ro" \
+  -v "$RUNTIME_CONFIG_DIR/fastlio_mid360.yaml:/root/ros2_ws/install/fast_lio/share/fast_lio/config/mid360.yaml:ro" \
   -v "${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro" \
   --entrypoint '' \
   "$IMAGE" \
@@ -89,5 +89,5 @@ docker run --rm \
     echo "/livox/lidar topic is available"
 
     echo "Starting Fast LIO..."
-    ros2 launch fast_lio mapping.launch.py config_file:=fastlio_mid360.yaml rviz:=false
+    ros2 launch fast_lio mapping.launch.py config_file:=mid360.yaml rviz:=false
 '

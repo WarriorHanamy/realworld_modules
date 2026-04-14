@@ -45,6 +45,7 @@ fn_tmux_session_safe_start "$SESSION"
 fn_tmux_window_new "$SESSION" "px4-connector"
 launch_cmd="docker run --rm --network host --ipc host --privileged \
   -e ROS_DOMAIN_ID=30 \
+  -e XRCE_DOMAIN_ID_OVERRIDE=30 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
   -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
   -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \

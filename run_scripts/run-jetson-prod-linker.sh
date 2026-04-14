@@ -43,7 +43,7 @@ INTERFACE="enP8p1s0"
 LIVOX_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/livox_mid360.json"
 FAST_LIO_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/fastlio_mid360.yaml"
 LIVOX_CONFIG_CONTAINER="/root/ros2_ws/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json"
-FAST_LIO_CONFIG_CONTAINER="/root/ros2_ws/install/fast_lio/share/fast_lio/config/fastlio_mid360.yaml"
+FAST_LIO_CONFIG_CONTAINER="/root/ros2_ws/install/fast_lio/share/fast_lio/config/mid360.yaml"
 
 # FAST-LIO parameters
 FAST_LIO_IMU_TOPIC="/px4/imu"
@@ -157,64 +157,26 @@ fn_tmux_session_safe_start "$SESSION"
 echo "Starting PX4 connector..."
 fn_tmux_window_rename "$SESSION" "main" "px4-connector"
 
-px4_connector_cmd="docker run --rm --name px4-connector-jetson \
-  --net=host --ipc=host --privileged \
-  -e ROS_DOMAIN_ID=30 \
-  -e XRCE_DOMAIN_ID_OVERRIDE=30 \
-  -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
-  -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
-  -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
-  ${PX4_IMAGE}"
-
+px4_connector_cmd="docker run --rm --name px4-connector-jetson --net=host --ipc=host --privileged -e ROS_DOMAIN_ID=30 --cpuset-cpus=6,7 -e XRCE_DOMAIN_ID_OVERRIDE=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e MICRO_XRCE_DEVICE=${MICRO_XRCE_DEVICE:-/dev/ttyTHS1} -e MICRO_XRCE_BAUDRATE=${MICRO_XRCE_BAUDRATE:-921600} -e OUTPUT_MODE=${OUTPUT_MODE:-topic} -e IMU_OUTPUT_TOPIC=${IMU_OUTPUT_TOPIC:-/px4/imu} -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${SCRIPT_DIR}/config/px4-entrypoint.sh:/entrypoint.sh:ro --entrypoint bash ${PX4_IMAGE} /entrypoint.sh"
 fn_tmux_pane_run "$SESSION" "px4-connector" "" "$px4_connector_cmd"
 
 # --- Window 2: LIO (Livox + FAST-LIO) ---------------------------------------
 echo "Starting LIO container..."
 fn_tmux_window_new "$SESSION" "lio"
 
-lio_cmd="docker run --rm --name lio-jetson \
-  --net=host --ipc=host \
-  --cpuset-cpus=6,7 \
-  -e ROS_DOMAIN_ID=30 \
-  -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
-  -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
-  -v ${RUNTIME_CONFIG_DIR}/livox_mid360.json:${LIVOX_CONFIG_CONTAINER}:ro \
-  -v ${RUNTIME_CONFIG_DIR}/fastlio_mid360.yaml:${FAST_LIO_CONFIG_CONTAINER}:ro \
-  -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
-  --entrypoint '' \
-  ${LIO_IMAGE} \
-  bash -c '
-    set -eo pipefail
-    set +u
-    source /opt/ros/humble/setup.bash
-    source /root/ros2_ws/install/setup.bash
-    set -u
-
-    echo \"Starting Livox driver...\"
-    ros2 launch livox_ros_driver2 msg_MID360_launch.py &
-    DRIVER_PID=\$!
-
-    echo \"Waiting for /livox/lidar topic...\"
-    until ros2 topic list 2>/dev/null | grep -q \"/livox/lidar\"; do
-        sleep 1
-    done
-    echo \"/livox/lidar topic is available\"
-
-    echo \"Waiting for /px4/imu topic...\"
-    until ros2 topic list 2>/dev/null | grep -q \"/px4/imu\"; do
-        sleep 1
-    done
-    echo \"/px4/imu topic is available\"
-
-    echo \"Starting Fast LIO...\"
-    ros2 launch fast_lio mapping.launch.py config_file:=fastlio_mid360.yaml rviz:=false
-  '"
-
+lio_cmd="docker run --rm --name lio-jetson --net=host --ipc=host --cpuset-cpus=2,3,4,5 -e ROS_DOMAIN_ID=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${RUNTIME_CONFIG_DIR}/livox_mid360.json:${LIVOX_CONFIG_CONTAINER}:ro -v ${RUNTIME_CONFIG_DIR}/fastlio_mid360.yaml:${FAST_LIO_CONFIG_CONTAINER}:ro -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${SCRIPT_DIR}/config/lio-entrypoint.sh:/entrypoint.sh:ro --entrypoint '' ${LIO_IMAGE} bash /entrypoint.sh"
 fn_tmux_pane_run "$SESSION" "lio" "" "$lio_cmd"
 
 # --- Window 3: Monitor -------------------------------------------------------
 echo "Creating monitor window..."
-monitor_script=$(cat <<'MONITOR_EOF'
+monitor_script=$(cat <<MONITOR_EOF
+set +u
+source /opt/ros/humble/setup.bash
+set -u
+export ROS_DOMAIN_ID=30
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export FASTRTPS_DEFAULT_PROFILES_FILE=$(printf '%q' "$FASTDDS_CONFIG")
+
 echo "=== Jetson Linker Monitor ==="
 echo ""
 echo "Session: jetson-prod-linker"
@@ -229,7 +191,7 @@ echo "Checking topics..."
 echo ""
 
 while true; do
-  echo "--- $(date '+%H:%M:%S') ---"
+  echo "--- \$(date '+%H:%M:%S') ---"
 
   # Check /px4/imu
   if ros2 topic list 2>/dev/null | grep -q "/px4/imu"; then
@@ -272,7 +234,7 @@ shell_script=$(cat <<'SHELL_EOF'
 echo "=== Container Shell Access ==="
 echo ""
 echo "Waiting for containers to start..."
-sleep 3
+sleep 10
 
 echo "Available containers:"
 docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
@@ -283,11 +245,29 @@ echo ""
 echo "Examples:"
 echo "  docker exec -it px4-connector-jetson bash"
 echo "  docker exec -it lio-jetson bash"
+echo ""
+echo "Attaching to PX4 connector now..."
+docker exec -it px4-connector-jetson bash -c "source /opt/ros/humble/setup.bash && source /root/px4_connector_ws/install/setup.bash && exec bash" || true
+echo ""
+echo "To re-attach: tmux attach -t jetson-prod-linker"
 SHELL_EOF
 )
 fn_tmux_window_create_and_run_bash "$SESSION" "shell" "$shell_script"
 
+fn_tmux_window_select "$SESSION" "monitor"
+
 # --- Select monitor window ---------------------------------------------------
+fn_tmux_window_select "$SESSION" "monitor"
+
+# --- Wait for containers to be ready -----------------------------------------
+echo "Waiting for containers to start..."
+sleep 30
+
+# --- Attach shell to PX4 connector -------------------------------------------
+echo "Attaching to PX4 connector container shell..."
+docker exec -it px4-connector-jetson bash -c "source /opt/ros/humble/setup.bash && source /root/px4_connector_ws/install/setup.bash && exec bash" || true
+
+# --- Return to monitor window ------------------------------------------------
 fn_tmux_window_select "$SESSION" "monitor"
 
 # --- Output summary ----------------------------------------------------------
