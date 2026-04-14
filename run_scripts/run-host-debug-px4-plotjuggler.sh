@@ -17,4 +17,8 @@ docker run --rm \
   -e DISPLAY="${DISPLAY}" \
   -v "${HOME}/.Xauthority:/root/.Xauthority:ro" \
   -v "${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro" \
-  vtol/plotjuggler-host:latest
+  --entrypoint bash \
+  vtol/plotjuggler-host:latest -c '\
+    source /opt/ros/humble/setup.bash && \
+    source /root/ros2_ws/install/setup.bash && \
+    ros2 run plotjuggler plotjuggler'

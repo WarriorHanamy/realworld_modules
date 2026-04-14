@@ -81,7 +81,7 @@ imu_sender_cmd="docker run --rm --network host --ipc host --privileged \
   -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
   -v /tmp:/tmp \
   ${PX4_IMAGE} \
-  bash -c 'set +u; source /opt/ros/humble/setup.bash; source /root/px4_connector_ws/install/setup.bash; set -u; ros2 launch imu_bridge sender.launch.py'"
+   bash -c 'set +u; source /opt/ros/humble/setup.bash; source /root/px4_connector_ws/install/setup.bash; set -u; ros2 launch imu_bridge sender.launch.py output_mode:=socket'"
 fn_tmux_pane_run "$SESSION" "imu-sender" "" "$imu_sender_cmd"
 
 # Window 2: Calibration (bag playback or live sensor)
