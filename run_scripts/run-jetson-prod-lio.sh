@@ -11,10 +11,8 @@ FASTDDS_CONFIG="${CONFIG_DIR}/fastdds-local.xml"
 LIVOX_CONFIG_TEMPLATE="${CONFIG_DIR}/livox_mid360.json"
 FAST_LIO_CONFIG_TEMPLATE="${CONFIG_DIR}/fastlio_mid360.yaml"
 FAST_LIO_IMU_TOPIC="/livox/imu"
-FAST_LIO_EXTRINSIC_T="[ -0.011, -0.02329, 0.04412 ]"
-FAST_LIO_EXTRINSIC_R="[ 1., 0., 0.,
-                        0., 1., 0.,
-                        0., 0., 1.]"
+FAST_LIO_EXTRINSIC_T="[ -0.01, -0.0, 0.09 ]"
+FAST_LIO_EXTRINSIC_R="[0.000000 0.965926 0.258819 -1.000000 0.000000 0.000000 0.000000 -0.258819 0.965926]"
 
 # Discover LiDAR IP from ARP cache
 LIDAR_IP=$(ip neigh show dev "$INTERFACE" | grep -v "INCOMPLETE" | grep -v "FAILED" | awk '{print $1}' | grep -v "\.255$" | head -1)

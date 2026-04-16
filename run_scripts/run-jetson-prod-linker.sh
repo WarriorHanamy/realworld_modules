@@ -38,7 +38,7 @@ source "$TMUX_UTILS"
 SESSION="jetson-prod-linker"
 PX4_IMAGE="vtol/px4-connector-jetson:latest"
 LIO_IMAGE="vtol/lio-jetson:latest"
-FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-local.xml"
+FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml"
 FASTDDS_PX4_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml" #patch now
 INTERFACE="enP8p1s0"
 LIVOX_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/livox_mid360.json"
@@ -48,11 +48,19 @@ FAST_LIO_CONFIG_CONTAINER="/root/ros2_ws/install/fast_lio/share/fast_lio/config/
 
 # FAST-LIO parameters
 FAST_LIO_IMU_TOPIC="/px4/imu"
-FAST_LIO_EXTRINSIC_T="[ -0.01, 0.0, 0.09 ]"
-FAST_LIO_EXTRINSIC_R="[ 0., 0.9681, 0.2504,
-                        -1., 0., 0.,
-                        0., -0.2504, 0.9681]"
+FAST_LIO_EXTRINSIC_T="[ -0.03, 0.0, 0.09 ]"
+#FAST_LIO_EXTRINSIC_T="[ -0.0, 0.0, 0.0 ]"
+FAST_LIO_EXTRINSIC_R="[0.000000, 0.965926, 0.258819, -1.000000, 0.000000, 0.000000, 0.000000, -0.258819, 0.965926]"
 
+# FAST_LIO_EXTRINSIC_R="[ 0., 0.9659258263, 0.2588190451,
+#                         1., 0., 0.,
+#                         0., 0.2588190451, 0.9659258263]"
+
+
+# FAST_LIO_EXTRINSIC_R="[ 1., 0.0, 0.0,
+#                         0., 1., 0.,
+#                         0., 0., 1.0]"
+#
 # --- Argument parsing --------------------------------------------------------
 BAG_FILE=""
 while [[ $# -gt 0 ]]; do
@@ -262,11 +270,8 @@ fn_tmux_window_select "$SESSION" "monitor"
 
 # --- Wait for containers to be ready -----------------------------------------
 echo "Waiting for containers to start..."
-sleep 30
+sleep 3
 
-# --- Attach shell to PX4 connector -------------------------------------------
-echo "Attaching to PX4 connector container shell..."
-docker exec -it px4-connector-jetson bash -c "source /opt/ros/humble/setup.bash && source /root/px4_connector_ws/install/setup.bash && exec bash" || true
 
 # --- Return to monitor window ------------------------------------------------
 fn_tmux_window_select "$SESSION" "monitor"
@@ -287,3 +292,6 @@ echo "  4. shell          - Container shell access"
 echo ""
 echo "Attach: tmux attach-session -t $SESSION"
 echo ""
+
+
+tmux attach-session -t $SESSION
