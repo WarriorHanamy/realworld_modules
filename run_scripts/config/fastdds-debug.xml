@@ -37,6 +37,12 @@
                 <initialPeersList>
                     <locator>
                         <udpv4>
+                            <address>127.0.0.1</address>
+                            <port>14900</port>
+                        </udpv4>
+                    </locator>
+                    <locator>
+                        <udpv4>
                             <address>192.168.55.1</address>
                             <port>14900</port>
                         </udpv4>

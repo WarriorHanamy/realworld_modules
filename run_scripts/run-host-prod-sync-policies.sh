@@ -2,9 +2,10 @@
 set -eo pipefail
 
 # =============================================================================
-# run-host-sync-policies.sh — Sync policies from host to Jetson device
+# run-host-prod-sync-policies.sh — Host-side policy sync for Jetson runtime
 #
-# Copies policy files from host's $HOME/server/policies to Jetson's
+# Runs on the host machine.
+# Copies policy files from $HOME/server/policies to the Jetson path
 # /home/nv/server/policies using the shared remote execution helpers.
 # =============================================================================
 
