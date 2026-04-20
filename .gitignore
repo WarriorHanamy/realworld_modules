@@ -18,3 +18,5 @@ vtol_deployment/data/*.txt
 .opencode/
 *.sync-conflict-*
 *audit*
+engine-output/
+cache/
