@@ -159,6 +159,59 @@ detect_cublas() {
 }
 
 # ---------------------------------------------------------------------------
+# Detection: TensorRT -- library and package checks
+# ---------------------------------------------------------------------------
+detect_tensorrt() {
+  local v so_path
+
+  # 1) dpkg - python3-tensorrt or tensorrt packages
+  v=$(dpkg-query -W -f='${Version}\n' python3-tensorrt 2>/dev/null | head -1)
+  [[ -n "$v" ]] && echo "$v" && return
+  v=$(dpkg-query -W -f='${Version}\n' tensorrt 2>/dev/null | head -1)
+  [[ -n "$v" ]] && echo "$v" && return
+  v=$(dpkg-query -W -f='${Version}\n' 'libnvinfer*' 2>/dev/null | head -1 | sed 's/:.*//')
+  [[ -n "$v" ]] && echo "$v" && return
+
+  # 2) library file version
+  so_path=$(find /usr -name 'libnvinfer.so*' -type f 2>/dev/null | head -1)
+  if [[ -n "$so_path" ]]; then
+    v=$(basename "$so_path" | grep -oP '(?<=libnvinfer\.so\.)[0-9]+(\.[0-9]+)*')
+    [[ -n "$v" ]] && echo "$v" && return
+  fi
+
+  # 3) Python module import
+  v=$(python3 -c "import tensorrt; print(tensorrt.__version__)" 2>/dev/null)
+  [[ -n "$v" ]] && echo "$v" && return
+
+  # 4) trt command
+  v=$(trt --version 2>/dev/null | grep -oP '[0-9]+\.[0-9]+\.[0-9]+')
+  [[ -n "$v" ]] && echo "$v" && return
+
+  echo "N/A"
+}
+
+# ---------------------------------------------------------------------------
+# Detection: cuda-python -- Python package check
+# ---------------------------------------------------------------------------
+detect_cuda_python() {
+  local v
+
+  # 1) Python module import (cuda-python package)
+  v=$(python3 -c "import cuda; print(cuda.__version__)" 2>/dev/null)
+  [[ -n "$v" ]] && echo "$v" && return
+
+  # 2) pip show
+  v=$(python3 -m pip show cuda-python 2>/dev/null | grep '^Version:' | awk '{print $2}')
+  [[ -n "$v" ]] && echo "$v" && return
+
+  # 3) dpkg - cuda-python-* packages
+  v=$(dpkg-query -W -f='${Version}\n' 'cuda-python*' 2>/dev/null | head -1)
+  [[ -n "$v" ]] && echo "$v" && return
+
+  echo "N/A"
+}
+
+# ---------------------------------------------------------------------------
 # Format table
 # ---------------------------------------------------------------------------
 print_row() {
@@ -195,6 +248,8 @@ nat_runtime=$(detect_cuda_runtime)
 nat_python=$(detect_python)
 nat_cudnn=$(detect_cudnn)
 nat_cublas=$(detect_cublas)
+nat_tensorrt=$(detect_tensorrt)
+nat_cuda_python=$(detect_cuda_python)
 
 # -- Container detection via temp script + docker mount --
 echo ">>> Querying container versions (this may take a moment to pull image)..."
@@ -299,18 +354,70 @@ detect_cublas() {
   echo "N/A"
 }
 
-printf 'TK:%s|RT:%s|PY:%s|BL:%s|DN:%s\n' \
+detect_tensorrt() {
+  local v so_path
+
+  # 1) dpkg - python3-tensorrt or tensorrt packages
+  v=$(dpkg-query -W -f='${Version}\n' python3-tensorrt 2>/dev/null | head -1)
+  [[ -n "$v" ]] && echo "$v" && return
+  v=$(dpkg-query -W -f='${Version}\n' tensorrt 2>/dev/null | head -1)
+  [[ -n "$v" ]] && echo "$v" && return
+  v=$(dpkg-query -W -f='${Version}\n' 'libnvinfer*' 2>/dev/null | head -1 | sed 's/:.*//')
+  [[ -n "$v" ]] && echo "$v" && return
+
+  # 2) library file version
+  so_path=$(find /usr -name 'libnvinfer.so*' -type f 2>/dev/null | head -1)
+  if [[ -n "$so_path" ]]; then
+    v=$(basename "$so_path" | grep -oP '(?<=libnvinfer\.so\.)[0-9]+(\.[0-9]+)*')
+    [[ -n "$v" ]] && echo "$v" && return
+  fi
+
+  # 3) Python module import
+  v=$(python3 -c "import tensorrt; print(tensorrt.__version__)" 2>/dev/null)
+  [[ -n "$v" ]] && echo "$v" && return
+
+  # 4) trt command
+  v=$(trt --version 2>/dev/null | grep -oP '[0-9]+\.[0-9]+\.[0-9]+')
+  [[ -n "$v" ]] && echo "$v" && return
+
+  echo "N/A"
+}
+
+detect_cuda_python() {
+  local v
+
+  # 1) Python module import (cuda-python package)
+  v=$(python3 -c "import cuda; print(cuda.__version__)" 2>/dev/null)
+  [[ -n "$v" ]] && echo "$v" && return
+
+  # 2) pip show
+  v=$(python3 -m pip show cuda-python 2>/dev/null | grep '^Version:' | awk '{print $2}')
+  [[ -n "$v" ]] && echo "$v" && return
+
+  # 3) dpkg - cuda-python-* packages
+  v=$(dpkg-query -W -f='${Version}\n' 'cuda-python*' 2>/dev/null | head -1)
+  [[ -n "$v" ]] && echo "$v" && return
+
+  echo "N/A"
+}
+
+printf 'TK:%s|RT:%s|PY:%s|BL:%s|DN:%s|TR:%s|CP:%s\n' \
   "$(detect_cuda_toolkit)" "$(detect_cuda_runtime)" "$(detect_python)" \
-  "$(detect_cublas)" "$(detect_cudnn)"
+  "$(detect_cublas)" "$(detect_cudnn)" "$(detect_tensorrt)" "$(detect_cuda_python)"
 PROBE_SCRIPT
 chmod +x "$PROBE_FILE"
 
-container_raw=$(docker run --rm --gpus all --network none \
+container_raw=$(docker run --rm --network none \
   -v "${PROBE_FILE}:/tmp/probe.sh:ro" \
   "$CONTAINER_IMAGE" \
-  bash /tmp/probe.sh 2>/dev/null) || true
+  bash /tmp/probe.sh 2>&1) || true
 
 rm -f "$PROBE_FILE"
+
+if [[ -z "$container_raw" ]]; then
+  echo "WARNING: container probe produced no output (docker run may have failed)" >&2
+  echo "  Image: ${CONTAINER_IMAGE}" >&2
+fi
 
 # -- Parse container fields --
 ctn_toolkit=$(echo "$container_raw" | grep -oP '(?<=TK:)[^|]+' | head -1 || echo "N/A")
@@ -318,6 +425,8 @@ ctn_runtime=$(echo "$container_raw" | grep -oP '(?<=RT:)[^|]+' | head -1 || echo
 ctn_python=$(echo "$container_raw" | grep -oP '(?<=PY:)[^|]+' | head -1 || echo "N/A")
 ctn_cublas=$(echo "$container_raw" | grep -oP '(?<=BL:)[^|]+' | head -1 || echo "N/A")
 ctn_cudnn=$(echo "$container_raw" | grep -oP '(?<=DN:)[^|]+' | head -1 || echo "N/A")
+ctn_tensorrt=$(echo "$container_raw" | grep -oP '(?<=TR:)[^|]+' | head -1 || echo "N/A")
+ctn_cuda_python=$(echo "$container_raw" | grep -oP '(?<=CP:)[^|]+' | head -1 || echo "N/A")
 
 # -- Print comparison table --
 echo ""
@@ -326,11 +435,13 @@ printf '  %-17s │ %-23s │ %-24s │ %s\n' \
   "Component" "Container" "Native Device" "Match"
 print_divider
 
-print_row "CUDA Toolkit"    "$ctn_toolkit" "$nat_toolkit"
-print_row "CUDA Runtime"    "$ctn_runtime" "$nat_runtime"
-print_row "Python"          "$ctn_python"  "$nat_python"
-print_row "cuBLAS"          "$ctn_cublas"  "$nat_cublas"
-print_row "cuDNN"           "$ctn_cudnn"   "$nat_cudnn"
+print_row "CUDA Toolkit"    "$ctn_toolkit"     "$nat_toolkit"
+print_row "CUDA Runtime"    "$ctn_runtime"     "$nat_runtime"
+print_row "Python"          "$ctn_python"      "$nat_python"
+print_row "cuBLAS"          "$ctn_cublas"      "$nat_cublas"
+print_row "cuDNN"           "$ctn_cudnn"       "$nat_cudnn"
+print_row "TensorRT"        "$ctn_tensorrt"    "$nat_tensorrt"
+print_row "cuda-python"     "$ctn_cuda_python" "$nat_cuda_python"
 
 echo ""
 echo "========================================================================="
