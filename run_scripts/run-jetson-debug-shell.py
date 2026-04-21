@@ -39,6 +39,20 @@ def validate_config(config_path: Path) -> bool:
     return True
 
 
+def find_running_container(image: str) -> str | None:
+    """Find a running container based on the given image."""
+    result = subprocess.run(
+        ["docker", "ps", "-q", "--filter", f"ancestor={image}"],
+        capture_output=True,
+        text=True,
+    )
+    container_ids = result.stdout.strip().split("\n") if result.stdout.strip() else []
+    if container_ids:
+        # Return the first running container ID
+        return container_ids[0]
+    return None
+
+
 def cleanup_containers(image: str) -> None:
     """Stop and remove existing containers from the same image."""
     print(f"[INFO] Cleaning up existing containers from image: {image}...")
@@ -87,10 +101,6 @@ def build_docker_command(
         "ROS_DOMAIN_ID=30",
         "-e",
         "RMW_IMPLEMENTATION=rmw_fastrtps_cpp",
-        "-e",
-        "FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml",
-        "-v",
-        f"{config_abs}:/etc/fastdds/fastdds.xml:ro",
         image,
     ]
 
@@ -105,6 +115,38 @@ def build_docker_command(
                 f"source {ROS2_WS_DIR}/install/setup.bash; set -u; exec bash",
             ]
         )
+
+    return docker_cmd
+
+
+def build_exec_command(
+    container_id: str,
+    fastdds_config: Path,
+    command: str | None = None,
+) -> list[str]:
+    """Build the docker exec command for attaching to a running container."""
+    # Note: docker exec does not support volume mounts, so we rely on the container's existing mounts.
+    docker_cmd = [
+        "docker",
+        "exec",
+        "-it",
+        "-e",
+        "ROS_DOMAIN_ID=30",
+        "-e",
+        "RMW_IMPLEMENTATION=rmw_fastrtps_cpp",
+        "-e",
+        "FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml",
+        container_id,
+    ]
+
+    if command:
+        docker_cmd.extend(["bash", "-c", command])
+    else:
+        default_cmd = (
+            "set +u; source /opt/ros/humble/setup.bash; "
+            f"source {ROS2_WS_DIR}/install/setup.bash; set -u; exec bash"
+        )
+        docker_cmd.extend(["bash", "-c", default_cmd])
 
     return docker_cmd
 
@@ -135,6 +177,11 @@ def main() -> int:
         help="Skip cleanup of existing containers",
     )
     parser.add_argument(
+        "--force-new",
+        action="store_true",
+        help="Force creation of a new container even if one is already running",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print docker command without executing",
@@ -149,11 +196,32 @@ def main() -> int:
     if not validate_config(args.config):
         return 1
 
-    # Cleanup existing containers unless disabled
+    # Check for existing running container
+    container_id = find_running_container(args.image)
+    if container_id and not args.force_new:
+        print(f"[INFO] Found running container: {container_id}")
+        print(f"[INFO] Attaching to existing container...")
+        exec_cmd = build_exec_command(container_id, args.config, args.command)
+        print(f"[INFO] Docker exec command: {' '.join(exec_cmd)}")
+
+        if args.dry_run:
+            print("[INFO] Dry-run mode: not executing command")
+            return 0
+
+        try:
+            result = subprocess.run(exec_cmd, check=False)
+            return result.returncode
+        except KeyboardInterrupt:
+            print("\n[INFO] Interrupted by user")
+            return 130
+        except Exception as e:
+            print(f"ERROR: Failed to exec into container: {e}", file=sys.stderr)
+            return 1
+
+    # No existing container or forced new: proceed with original flow
     if not args.no_cleanup:
         cleanup_containers(args.image)
 
-    # Build and run docker command
     docker_cmd = build_docker_command(args.image, args.config, args.command)
 
     print(f"[INFO] Starting container: {args.image}")

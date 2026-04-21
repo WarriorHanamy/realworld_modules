@@ -48,11 +48,11 @@ launch_cmd="docker run --rm --network host --ipc host --privileged \
   -e ROS_DOMAIN_ID=30 \
   -e XRCE_DOMAIN_ID_OVERRIDE=30 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  -e OUTPUT_MODE=topic \
   -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
   -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
   -v /tmp:/tmp \
-  ${IMAGE} \
-  bash -c 'set +u; source /opt/ros/humble/setup.bash; source ${ROS2_WS_DIR}/install/setup.bash; set -u; ros2 launch imu_bridge sender.launch.py'"
+  ${IMAGE}"
 fn_tmux_pane_run "$SESSION" "px4-connector" "" "$launch_cmd"
 
 # Window 2: Exec into px4-connector container with ROS env sourced

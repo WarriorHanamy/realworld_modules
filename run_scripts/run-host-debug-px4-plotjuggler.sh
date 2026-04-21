@@ -20,5 +20,5 @@ docker run --rm \
   --entrypoint bash \
   vtol/plotjuggler-host:latest -c '\
     source /opt/ros/humble/setup.bash && \
-    source /home/ros/ros2_ws/install/setup.bash && \
+    source /root/ros2_ws/install/setup.bash && \
     ros2 run plotjuggler plotjuggler'
