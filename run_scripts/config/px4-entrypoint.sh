@@ -9,12 +9,20 @@ set -u
 
 MICRO_XRCE_DEVICE="${MICRO_XRCE_DEVICE:-/dev/ttyTHS1}"
 MICRO_XRCE_BAUDRATE="${MICRO_XRCE_BAUDRATE:-921600}"
+MICRO_XRCE_REFS_FILE="${MICRO_XRCE_REFS_FILE:-/etc/uxrce/agent.refs}"
 OUTPUT_MODE="${OUTPUT_MODE:-topic}"
 IMU_OUTPUT_TOPIC="${IMU_OUTPUT_TOPIC:-/px4/imu}"
 SOCKET_PATH="${SOCKET_PATH:-/tmp/imu_bridge.sock}"
 
 echo "Starting Micro XRCE-DDS Agent..."
-MicroXRCEAgent serial --dev "${MICRO_XRCE_DEVICE}" -b "${MICRO_XRCE_BAUDRATE}" &
+agent_cmd=(MicroXRCEAgent serial --dev "${MICRO_XRCE_DEVICE}" -b "${MICRO_XRCE_BAUDRATE}")
+
+if [[ -f "${MICRO_XRCE_REFS_FILE}" ]]; then
+  echo "Loading XRCE agent refs: ${MICRO_XRCE_REFS_FILE}"
+  agent_cmd+=(-r "${MICRO_XRCE_REFS_FILE}")
+fi
+
+"${agent_cmd[@]}" &
 
 echo "Waiting 3 seconds for Micro XRCE-DDS Agent..."
 sleep 3

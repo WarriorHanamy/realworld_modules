@@ -54,7 +54,6 @@ LIO_IMAGE="vtol/lio-jetson:latest"
 INFER_IMAGE="vtol/bht-jetson:latest"
 ROS2_WS_DIR="/home/ros/ros2_ws"
 
-FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml"
 INTERFACE="enP8p1s0"
 LIVOX_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/livox_mid360.json"
 FAST_LIO_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/fastlio_mid360.yaml"
@@ -63,6 +62,7 @@ FAST_LIO_CONFIG_CONTAINER="${ROS2_WS_DIR}/install/fast_lio/share/fast_lio/config
 
 JETSON_POLICIES_DIR="/home/nv/server/policies"
 RUNTIME_CONFIG_DIR="/tmp/linker-config"
+PX4_AGENT_REFS="${SCRIPT_DIR}/config/uxrce-agent-local.refs"
 EXECUTOR_CONTAINER_NAME="neural-executor-jetson"
 INFER_CONTAINER_NAME="neural-infer-jetson"
 SHELL_CONTAINER_NAME="inference-shell-jetson"
@@ -111,14 +111,14 @@ done
 echo "=== Production Stack Startup ==="
 echo ""
 
-if [[ ! -f "$FASTDDS_CONFIG" ]]; then
-  echo "ERROR: FastDDS config not found: $FASTDDS_CONFIG"
-  exit 1
-fi
-
 # --- Validation: Linker-specific --------------------------------------------
 if [[ "$START_LINKER" == "true" ]]; then
   echo "Validating LIO pipeline..."
+
+  if [[ ! -f "$PX4_AGENT_REFS" ]]; then
+    echo "ERROR: XRCE agent refs not found: $PX4_AGENT_REFS"
+    exit 1
+  fi
   
   if ! docker image inspect "$PX4_IMAGE" >/dev/null 2>&1; then
     echo "ERROR: Image $PX4_IMAGE not found."
@@ -226,14 +226,14 @@ if [[ "$START_LINKER" == "true" ]]; then
   echo "Starting PX4 connector..."
   fn_tmux_window_rename "$SESSION" "main" "px4-connector"
 
-  px4_connector_cmd="docker run --rm --name px4-connector-jetson --net=host --ipc=host --privileged -e ROS_DOMAIN_ID=30 --cpuset-cpus=6,7 -e XRCE_DOMAIN_ID_OVERRIDE=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e MICRO_XRCE_DEVICE=${MICRO_XRCE_DEVICE:-/dev/ttyTHS1} -e MICRO_XRCE_BAUDRATE=${MICRO_XRCE_BAUDRATE:-921600} -e OUTPUT_MODE=${OUTPUT_MODE:-topic} -e IMU_OUTPUT_TOPIC=${IMU_OUTPUT_TOPIC:-/px4/imu} -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${SCRIPT_DIR}/config/px4-entrypoint.sh:/entrypoint.sh:ro --entrypoint bash ${PX4_IMAGE} /entrypoint.sh"
+  px4_connector_cmd="docker run --rm --name px4-connector-jetson --net=host --ipc=host --privileged -e ROS_DOMAIN_ID=30 -e ROS_LOCALHOST_ONLY=1 --cpuset-cpus=6,7 -e XRCE_DOMAIN_ID_OVERRIDE=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e MICRO_XRCE_REFS_FILE=/etc/uxrce/agent.refs -e MICRO_XRCE_DEVICE=${MICRO_XRCE_DEVICE:-/dev/ttyTHS1} -e MICRO_XRCE_BAUDRATE=${MICRO_XRCE_BAUDRATE:-921600} -e OUTPUT_MODE=${OUTPUT_MODE:-topic} -e IMU_OUTPUT_TOPIC=${IMU_OUTPUT_TOPIC:-/px4/imu} -v ${PX4_AGENT_REFS}:/etc/uxrce/agent.refs:ro -v ${SCRIPT_DIR}/config/px4-entrypoint.sh:/entrypoint.sh:ro --entrypoint bash ${PX4_IMAGE} /entrypoint.sh"
   fn_tmux_pane_run "$SESSION" "px4-connector" "" "$px4_connector_cmd"
 
   # --- Window 2: LIO (Livox + FAST-LIO) -----------------------------------
   echo "Starting LIO container..."
   fn_tmux_window_new "$SESSION" "lio"
 
-  lio_cmd="docker run --rm --name lio-jetson --net=host --ipc=host --cpuset-cpus=2,3,4,5 -e ROS_DOMAIN_ID=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${RUNTIME_CONFIG_DIR}/livox_mid360.json:${LIVOX_CONFIG_CONTAINER}:ro -v ${RUNTIME_CONFIG_DIR}/fastlio_mid360.yaml:${FAST_LIO_CONFIG_CONTAINER}:ro -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${SCRIPT_DIR}/config/lio-entrypoint.sh:/entrypoint.sh:ro --entrypoint '' ${LIO_IMAGE} bash /entrypoint.sh"
+  lio_cmd="docker run --rm --name lio-jetson --net=host --ipc=host --cpuset-cpus=2,3,4,5 -e ROS_DOMAIN_ID=30 -e ROS_LOCALHOST_ONLY=1 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -v ${RUNTIME_CONFIG_DIR}/livox_mid360.json:${LIVOX_CONFIG_CONTAINER}:ro -v ${RUNTIME_CONFIG_DIR}/fastlio_mid360.yaml:${FAST_LIO_CONFIG_CONTAINER}:ro -v ${SCRIPT_DIR}/config/lio-entrypoint.sh:/entrypoint.sh:ro --entrypoint '' ${LIO_IMAGE} bash /entrypoint.sh"
   fn_tmux_pane_run "$SESSION" "lio" "" "$lio_cmd"
 fi
 
@@ -243,12 +243,12 @@ if [[ "$START_INFER" == "true" ]]; then
   fn_tmux_window_new "$SESSION" "executor"
 
   executor_cmd=$(cat <<EOF
+sleep 10 && \
 docker run --rm --name ${EXECUTOR_CONTAINER_NAME} \
   --user root --net=host --ipc=host --privileged \
   -e ROS_DOMAIN_ID=30 \
+  -e ROS_LOCALHOST_ONLY=1 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
-  -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
-  -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
   ${INFER_IMAGE} bash -c 'set +u; source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash; set -u; ros2 launch neural_executor neural_executor.launch.py'
 EOF
 )
@@ -262,9 +262,8 @@ EOF
 docker run --rm --name ${INFER_CONTAINER_NAME} \
   --user root --net=host --ipc=host --privileged \
   -e ROS_DOMAIN_ID=30 \
+  -e ROS_LOCALHOST_ONLY=1 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
-  -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
-  -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
   -v ${JETSON_POLICIES_DIR}:/home/ros/policies:ro \
   ${INFER_IMAGE} bash -c 'set +u; source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash; set -u; python3 -m neural_manager.neural_inference.neural_infer'
 EOF
@@ -280,9 +279,8 @@ EOF
 docker run --rm -it --name ${SHELL_CONTAINER_NAME} \
   --user root --net=host --ipc=host --privileged \
   -e ROS_DOMAIN_ID=30 \
+  -e ROS_LOCALHOST_ONLY=1 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
-  -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
-  -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
   -v ${JETSON_POLICIES_DIR}:/home/ros/policies:ro \
   ${INFER_IMAGE} bash -c 'set +u; source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash; set -u; exec bash'
 EOF
