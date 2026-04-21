@@ -9,22 +9,24 @@ set -eo pipefail
 #   2. LIO container:
 #      - livox_ros_driver2 (publishes /livox/lidar)
 #      - FAST-LIO (publishes /Odometry when both IMU and LiDAR exist)
-#   3. Neural inference service (behavior policy evaluation)
-#   4. Shell for interactive debugging
+#   3. Neural executor launch
+#   4. Neural inference service (behavior policy evaluation)
+#   5. Shell for interactive debugging
 #
 # Data flow:
 #   PX4 FMU → PX4 connector → /px4/imu
 #   Livox LiDAR → livox_ros_driver2 → /livox/lidar
 #   /px4/imu + /livox/lidar → FAST-LIO → /Odometry
 #   /Odometry → PX4 connector → /fmu/in/vehicle_visual_odometry
-#   /Odometry + sensors → Neural inference → /neural/control (AccRatesControl)
+#   /Odometry + sensors → Neural inference → /neural/control
+#   /neural/control → Neural executor → PX4 offboard control
 #
 # Usage:
 #   ./run-jetson-production.sh [OPTIONS]
 #
 # Options:
 #   --skip-linker       Skip PX4 connector and LIO pipeline
-#   --skip-infer        Skip neural inference services
+#   --skip-infer        Skip neural executor and inference services
 #   -h, --help          Show this help message
 # ==============================================================================
 
@@ -61,6 +63,9 @@ FAST_LIO_CONFIG_CONTAINER="${ROS2_WS_DIR}/install/fast_lio/share/fast_lio/config
 
 JETSON_POLICIES_DIR="/home/nv/server/policies"
 RUNTIME_CONFIG_DIR="/tmp/linker-config"
+EXECUTOR_CONTAINER_NAME="neural-executor-jetson"
+INFER_CONTAINER_NAME="neural-infer-jetson"
+SHELL_CONTAINER_NAME="inference-shell-jetson"
 
 # FAST-LIO parameters
 FAST_LIO_IMU_TOPIC="/px4/imu"
@@ -79,11 +84,11 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Production startup for complete Jetson stack:"
       echo "  - PX4 connector + LIO (sensor fusion)"
-      echo "  - Neural inference (behavior policy)"
+      echo "  - Neural executor + inference (behavior policy)"
       echo ""
       echo "Options:"
       echo "  --skip-linker      Skip PX4 connector + LIO"
-      echo "  --skip-infer       Skip neural inference"
+      echo "  --skip-infer       Skip neural executor + inference"
       echo "  -h, --help         Show this help"
       exit 0
       ;;
@@ -133,7 +138,7 @@ fi
 
 # --- Validation: Inference-specific -----------------------------------------
 if [[ "$START_INFER" == "true" ]]; then
-  echo "Validating neural inference..."
+  echo "Validating neural services..."
   
   if ! docker image inspect "$INFER_IMAGE" >/dev/null 2>&1; then
     echo "ERROR: Image $INFER_IMAGE not found."
@@ -161,8 +166,9 @@ if [[ "$START_LINKER" == "true" ]]; then
 fi
 
 if [[ "$START_INFER" == "true" ]]; then
-  docker ps -a --filter "name=neural-infer-jetson" -q | xargs -r docker rm -f 2>/dev/null || true
-  docker ps -a --filter "name=inference-shell-jetson" -q | xargs -r docker rm -f 2>/dev/null || true
+  docker ps -a --filter "name=${EXECUTOR_CONTAINER_NAME}" -q | xargs -r docker rm -f 2>/dev/null || true
+  docker ps -a --filter "name=${INFER_CONTAINER_NAME}" -q | xargs -r docker rm -f 2>/dev/null || true
+  docker ps -a --filter "name=${SHELL_CONTAINER_NAME}" -q | xargs -r docker rm -f 2>/dev/null || true
 fi
 
 # --- Linker: Network discovery & config generation -------------------------
@@ -231,38 +237,54 @@ if [[ "$START_LINKER" == "true" ]]; then
   fn_tmux_pane_run "$SESSION" "lio" "" "$lio_cmd"
 fi
 
-# --- Window 3: Neural Inference (if --skip-infer not set) -----------------
+# --- Window 3+: Neural Services (if --skip-infer not set) -----------------
 if [[ "$START_INFER" == "true" ]]; then
+  echo "Starting neural executor..."
+  fn_tmux_window_new "$SESSION" "executor"
+
+  executor_cmd=$(cat <<EOF
+docker run --rm --name ${EXECUTOR_CONTAINER_NAME} \
+  --user root --net=host --ipc=host --privileged \
+  -e ROS_DOMAIN_ID=30 \
+  -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
+  -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
+  ${INFER_IMAGE} bash -c 'set +u; source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash; set -u; ros2 launch neural_executor neural_executor.launch.py'
+EOF
+)
+
+  fn_tmux_pane_run "$SESSION" "executor" "" "$executor_cmd"
+
   echo "Starting neural inference..."
   fn_tmux_window_new "$SESSION" "infer"
 
   infer_cmd=$(cat <<EOF
-docker run --rm --name neural-infer-jetson \
+docker run --rm --name ${INFER_CONTAINER_NAME} \
   --user root --net=host --ipc=host --privileged \
   -e ROS_DOMAIN_ID=30 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
   -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
   -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
   -v ${JETSON_POLICIES_DIR}:/home/ros/policies:ro \
-  ${INFER_IMAGE} bash -c 'source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash && python3 -m neural_manager.neural_inference.neural_infer'
+  ${INFER_IMAGE} bash -c 'set +u; source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash; set -u; python3 -m neural_manager.neural_inference.neural_infer'
 EOF
 )
 
   fn_tmux_pane_run "$SESSION" "infer" "" "$infer_cmd"
 
-  # --- Window 4: Inference Shell -------------------------------------------
+  # --- Window 5: Inference Shell -------------------------------------------
   echo "Creating inference debug shell..."
   fn_tmux_window_new "$SESSION" "shell"
 
   shell_cmd=$(cat <<EOF
-docker run --rm -it \
+docker run --rm -it --name ${SHELL_CONTAINER_NAME} \
   --user root --net=host --ipc=host --privileged \
   -e ROS_DOMAIN_ID=30 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
   -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
   -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
   -v ${JETSON_POLICIES_DIR}:/home/ros/policies:ro \
-  ${INFER_IMAGE} bash -c 'set +u; source /opt/ros/humble/setup.bash; source /home/ros/ros2_ws/install/setup.bash; set -u; exec bash'
+  ${INFER_IMAGE} bash -c 'set +u; source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash; set -u; exec bash'
 EOF
 )
 
@@ -289,13 +311,15 @@ Data Flow:
   Livox LiDAR → livox_ros_driver2 → /livox/lidar
   /px4/imu + /livox/lidar → FAST-LIO → /Odometry
   /Odometry → PX4 connector → /fmu/in/vehicle_visual_odometry
-$(if [[ "$START_INFER" == "true" ]]; then echo "  /Odometry + sensors → Neural inference → /cmd_vel"; fi)
+$(if [[ "$START_INFER" == "true" ]]; then echo "  /Odometry + sensors → Neural inference → /neural/control"; fi)
+$(if [[ "$START_INFER" == "true" ]]; then echo "  /neural/control → Neural executor → PX4 offboard control"; fi)
 
 Windows:
   1. px4-connector - PX4 connector output
   2. lio - LiDAR and FAST-LIO output
-$(if [[ "$START_INFER" == "true" ]]; then echo "  3. infer - Neural inference service"; fi)
-$(if [[ "$START_INFER" == "true" ]]; then echo "  4. shell - Interactive inference shell"; fi)
+$(if [[ "$START_INFER" == "true" ]]; then echo "  3. executor - Neural executor launch"; fi)
+$(if [[ "$START_INFER" == "true" ]]; then echo "  4. infer - Neural inference service"; fi)
+$(if [[ "$START_INFER" == "true" ]]; then echo "  5. shell - Interactive inference shell"; fi)
   (last) monitor - This monitor
 
 To check topics:
@@ -304,12 +328,13 @@ To check topics:
 To attach to specific windows:
   tmux select-window -t ${SESSION}:px4-connector
   tmux select-window -t ${SESSION}:lio
+$(if [[ "$START_INFER" == "true" ]]; then echo "  tmux select-window -t ${SESSION}:executor"; fi)
 $(if [[ "$START_INFER" == "true" ]]; then echo "  tmux select-window -t ${SESSION}:infer"; fi)
 $(if [[ "$START_INFER" == "true" ]]; then echo "  tmux select-window -t ${SESSION}:shell"; fi)
 MONITOR_TEXT
 )
 else
-  monitor_text="Jetson Production Stack: Inference Only (--skip-linker)"
+  monitor_text="Jetson Production Stack: Neural services only (--skip-linker)"
 fi
 
   fn_tmux_pane_run "$SESSION" "monitor" "" "cat <<'EOF'
@@ -330,7 +355,7 @@ if [[ "$START_LINKER" == "true" ]]; then
   echo "  ✓ LIO pipeline (PX4 + LiDAR + FAST-LIO)"
 fi
 if [[ "$START_INFER" == "true" ]]; then
-  echo "  ✓ Neural inference (behavior policy)"
+  echo "  ✓ Neural executor + inference (behavior policy)"
 fi
 echo ""
 echo "Attach to session:"

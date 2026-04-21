@@ -35,7 +35,6 @@ INFER_CONTAINER_NAME="neural-infer-jetson"
 FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml"
 JETSON_POLICIES_DIR="/home/nv/server/policies"
 BHT_SRC_DIR="/home/nv/realworld_modules/vtol_behavior_manager/src"
-PYDEPS_DIR="/home/nv/.cache/vtol-neural-pydeps"
 ROS2_WS_DIR="/home/ros/ros2_ws"
 ROS2_SRC_DIR="${ROS2_WS_DIR}/src"
 
@@ -60,8 +59,6 @@ if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
   exit 1
 fi
 
-mkdir -p "${PYDEPS_DIR}"
-
 echo "Cleaning up existing inference container..."
 docker ps -a --filter "name=${INFER_CONTAINER_NAME}" -q | xargs -r docker rm -f 2>/dev/null || true
 
@@ -69,11 +66,11 @@ echo "Starting tmux session ${SESSION}..."
 fn_tmux_session_safe_start "${SESSION}"
 fn_tmux_window_rename "${SESSION}" "main" "infer"
 
-infer_cmd="docker run --rm --name ${INFER_CONTAINER_NAME} --user root --net=host --ipc=host --privileged -e ROS_DOMAIN_ID=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${JETSON_POLICIES_DIR}:/home/ros/policies:ro -v ${BHT_SRC_DIR}:${ROS2_SRC_DIR}:ro -v ${PYDEPS_DIR}:/opt/neural_pydeps ${IMAGE} bash -lc \"set +u; source /opt/ros/humble/setup.bash; if [ -f ${ROS2_WS_DIR}/install/setup.bash ]; then source ${ROS2_WS_DIR}/install/setup.bash; fi; set -u; python3 -c 'import sys; sys.path.insert(0, \\\"/opt/neural_pydeps\\\"); sys.path.insert(0, \\\"${ROS2_SRC_DIR}\\\"); import hydra, numpy, onnxruntime, neural_manager.neural_inference.neural_infer' >/dev/null 2>&1 || python3 -m pip install --no-cache-dir --target /opt/neural_pydeps hydra-core onnxruntime; python3 -c 'import runpy, sys; sys.path.insert(0, \\\"/opt/neural_pydeps\\\"); sys.path.insert(0, \\\"${ROS2_SRC_DIR}\\\"); runpy.run_module(\\\"neural_manager.neural_inference.neural_infer\\\", run_name=\\\"__main__\\\")'\""
+infer_cmd="docker run --rm --name ${INFER_CONTAINER_NAME} --user root --net=host --ipc=host --privileged -e ROS_DOMAIN_ID=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${JETSON_POLICIES_DIR}:/home/ros/policies:ro -v ${BHT_SRC_DIR}:${ROS2_SRC_DIR}:ro ${IMAGE} bash -lc \"set +u; source /opt/ros/humble/setup.bash; if [ -f ${ROS2_WS_DIR}/install/setup.bash ]; then source ${ROS2_WS_DIR}/install/setup.bash; fi; set -u; python3 -m neural_manager.neural_inference.neural_infer\""
 fn_tmux_pane_run "${SESSION}" "infer" "" "${infer_cmd}"
 
 fn_tmux_window_new "${SESSION}" "shell"
-shell_cmd="docker run --rm -it --user root --net=host --ipc=host --privileged -e ROS_DOMAIN_ID=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${JETSON_POLICIES_DIR}:/home/ros/policies:ro -v ${BHT_SRC_DIR}:${ROS2_SRC_DIR}:ro -v ${PYDEPS_DIR}:/opt/neural_pydeps ${IMAGE} bash -lc \"set +u; source /opt/ros/humble/setup.bash; if [ -f ${ROS2_WS_DIR}/install/setup.bash ]; then source ${ROS2_WS_DIR}/install/setup.bash; fi; set -u; python3 -c 'import sys; sys.path.insert(0, \\\"/opt/neural_pydeps\\\"); sys.path.insert(0, \\\"${ROS2_SRC_DIR}\\\"); import hydra, numpy, onnxruntime, neural_manager.neural_inference.neural_infer' >/dev/null 2>&1 || python3 -m pip install --no-cache-dir --target /opt/neural_pydeps hydra-core onnxruntime; exec bash\""
+shell_cmd="docker run --rm -it --user root --net=host --ipc=host --privileged -e ROS_DOMAIN_ID=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${JETSON_POLICIES_DIR}:/home/ros/policies:ro -v ${BHT_SRC_DIR}:${ROS2_SRC_DIR}:ro ${IMAGE} bash -lc \"set +u; source /opt/ros/humble/setup.bash; if [ -f ${ROS2_WS_DIR}/install/setup.bash ]; then source ${ROS2_WS_DIR}/install/setup.bash; fi; set -u; exec bash\""
 fn_tmux_pane_run "${SESSION}" "shell" "" "${shell_cmd}"
 
 fn_tmux_window_select "${SESSION}" "shell"
