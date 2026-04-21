@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+ROS2_WS_DIR = "/home/ros/ros2_ws"
+
 
 def get_script_dir() -> Path:
     """Get the directory containing this script."""
@@ -100,7 +102,7 @@ def build_docker_command(
             [
                 "-c",
                 "set +u; source /opt/ros/humble/setup.bash; "
-                "source /root/px4_connector_ws/install/setup.bash; set -u; exec bash",
+                f"source {ROS2_WS_DIR}/install/setup.bash; set -u; exec bash",
             ]
         )
 

@@ -38,13 +38,14 @@ source "$TMUX_UTILS"
 SESSION="jetson-prod-linker"
 PX4_IMAGE="vtol/px4-connector-jetson:latest"
 LIO_IMAGE="vtol/lio-jetson:latest"
+ROS2_WS_DIR="/home/ros/ros2_ws"
 FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml"
 FASTDDS_PX4_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml" #patch now
 INTERFACE="enP8p1s0"
 LIVOX_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/livox_mid360.json"
 FAST_LIO_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/fastlio_mid360.yaml"
-LIVOX_CONFIG_CONTAINER="/root/ros2_ws/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json"
-FAST_LIO_CONFIG_CONTAINER="/root/ros2_ws/install/fast_lio/share/fast_lio/config/mid360.yaml"
+LIVOX_CONFIG_CONTAINER="${ROS2_WS_DIR}/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json"
+FAST_LIO_CONFIG_CONTAINER="${ROS2_WS_DIR}/install/fast_lio/share/fast_lio/config/mid360.yaml"
 
 # FAST-LIO parameters
 FAST_LIO_IMU_TOPIC="/px4/imu"
@@ -166,14 +167,14 @@ fn_tmux_session_safe_start "$SESSION"
 echo "Starting PX4 connector..."
 fn_tmux_window_rename "$SESSION" "main" "px4-connector"
 
-px4_connector_cmd="docker run --rm --name px4-connector-jetson --net=host --ipc=host --privileged -e ROS_DOMAIN_ID=30 --cpuset-cpus=6,7 -e XRCE_DOMAIN_ID_OVERRIDE=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e MICRO_XRCE_DEVICE=${MICRO_XRCE_DEVICE:-/dev/ttyTHS1} -e MICRO_XRCE_BAUDRATE=${MICRO_XRCE_BAUDRATE:-921600} -e OUTPUT_MODE=${OUTPUT_MODE:-topic} -e IMU_OUTPUT_TOPIC=${IMU_OUTPUT_TOPIC:-/px4/imu} -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${FASTDDS_PX4_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${SCRIPT_DIR}/config/px4-entrypoint.sh:/entrypoint.sh:ro --entrypoint bash ${PX4_IMAGE} /entrypoint.sh"
+px4_connector_cmd="docker run --rm --name px4-connector-jetson --net=host --ipc=host --privileged -e ROS_DOMAIN_ID=30 --cpuset-cpus=6,7 -e XRCE_DOMAIN_ID_OVERRIDE=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e WS_DIR=${ROS2_WS_DIR} -e MICRO_XRCE_DEVICE=${MICRO_XRCE_DEVICE:-/dev/ttyTHS1} -e MICRO_XRCE_BAUDRATE=${MICRO_XRCE_BAUDRATE:-921600} -e OUTPUT_MODE=${OUTPUT_MODE:-topic} -e IMU_OUTPUT_TOPIC=${IMU_OUTPUT_TOPIC:-/px4/imu} -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${FASTDDS_PX4_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${SCRIPT_DIR}/config/px4-entrypoint.sh:/entrypoint.sh:ro --entrypoint bash ${PX4_IMAGE} /entrypoint.sh"
 fn_tmux_pane_run "$SESSION" "px4-connector" "" "$px4_connector_cmd"
 
 # --- Window 2: LIO (Livox + FAST-LIO) ---------------------------------------
 echo "Starting LIO container..."
 fn_tmux_window_new "$SESSION" "lio"
 
-lio_cmd="docker run --rm --name lio-jetson --net=host --ipc=host --cpuset-cpus=2,3,4,5 -e ROS_DOMAIN_ID=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${RUNTIME_CONFIG_DIR}/livox_mid360.json:${LIVOX_CONFIG_CONTAINER}:ro -v ${RUNTIME_CONFIG_DIR}/fastlio_mid360.yaml:${FAST_LIO_CONFIG_CONTAINER}:ro -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${SCRIPT_DIR}/config/lio-entrypoint.sh:/entrypoint.sh:ro --entrypoint '' ${LIO_IMAGE} bash /entrypoint.sh"
+lio_cmd="docker run --rm --name lio-jetson --net=host --ipc=host --cpuset-cpus=2,3,4,5 -e ROS_DOMAIN_ID=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e WS_DIR=${ROS2_WS_DIR} -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${RUNTIME_CONFIG_DIR}/livox_mid360.json:${LIVOX_CONFIG_CONTAINER}:ro -v ${RUNTIME_CONFIG_DIR}/fastlio_mid360.yaml:${FAST_LIO_CONFIG_CONTAINER}:ro -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${SCRIPT_DIR}/config/lio-entrypoint.sh:/entrypoint.sh:ro --entrypoint '' ${LIO_IMAGE} bash /entrypoint.sh"
 fn_tmux_pane_run "$SESSION" "lio" "" "$lio_cmd"
 
 # --- Window 3: Monitor -------------------------------------------------------
@@ -256,7 +257,7 @@ echo "  docker exec -it px4-connector-jetson bash"
 echo "  docker exec -it lio-jetson bash"
 echo ""
 echo "Attaching to PX4 connector now..."
-docker exec -it px4-connector-jetson bash -c "source /opt/ros/humble/setup.bash && source /root/px4_connector_ws/install/setup.bash && exec bash" || true
+docker exec -it px4-connector-jetson bash -c "source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash && exec bash" || true
 echo ""
 echo "To re-attach: tmux attach -t jetson-prod-linker"
 SHELL_EOF

@@ -28,6 +28,13 @@ Device config: `sync_service/sync_env` (DEVICE_IP, DEVICE_USER, SSH_KEY, etc.)
 - Each script handles one service.
 - Prefer `tmux_utils.sh` for process lifecycle management when orchestrating multiple services.
 
+## ROS2 Workspace Convention
+
+- **Rule**: ROS2 Docker run scripts must treat `/home/ros/ros2_ws` as the canonical in-container workspace path.
+- Use `/home/ros/ros2_ws/install/setup.bash` when sourcing the built ROS2 workspace.
+- Use `/home/ros/ros2_ws/src` for source mounts when a run script bind-mounts ROS2 packages into a container.
+- Do not introduce new `/root/ros2_ws` or `/root/px4_connector_ws` assumptions in `run_scripts/`.
+
 ## Discovery Rule
 
 - When creating or updating `run_scripts/`, inspect the owning subfolder Makefile only.

@@ -21,6 +21,7 @@ source "$TMUX_UTILS"
 SESSION="jetson-debug-lio"
 IMAGE="vtol/lio-jetson:latest"
 FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml"
+ROS2_WS_DIR="/home/ros/ros2_ws"
 
 # Validate config file
 if [[ ! -f "$FASTDDS_CONFIG" ]]; then
@@ -50,14 +51,14 @@ launch_cmd="docker run --rm --network host --ipc host --privileged \
   -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
   -v /tmp:/tmp \
   ${IMAGE} \
-  bash -c 'set +u; source /opt/ros/humble/setup.bash; source /root/ros2_ws/install/setup.bash; set -u; ros2 launch livox_ros_driver2 ros2_ros__init.launch.py && ros2 launch fast_lio mapping_ros2.launch'"
+  bash -c 'set +u; source /opt/ros/humble/setup.bash; source ${ROS2_WS_DIR}/install/setup.bash; set -u; ros2 launch livox_ros_driver2 ros2_ros__init.launch.py && ros2 launch fast_lio mapping_ros2.launch'"
 fn_tmux_pane_run "$SESSION" "lio" "" "$launch_cmd"
 
 # Window 2: Exec into lio container with ROS env sourced
 shell_script="echo \"Waiting for lio container...\" && \
 until CONTAINER_ID=\$(docker ps -q --filter ancestor=${IMAGE}); do sleep 1; done && \
 echo \"Attaching to container: \${CONTAINER_ID}\" && \
-docker exec -it \${CONTAINER_ID} bash -c 'source /opt/ros/humble/setup.bash && source /root/ros2_ws/install/setup.bash && exec bash'"
+docker exec -it \${CONTAINER_ID} bash -c 'source /opt/ros/humble/setup.bash && source ${ROS2_WS_DIR}/install/setup.bash && exec bash'"
 fn_tmux_window_create_and_run_bash "$SESSION" "lio-shell" "$shell_script"
 
 # Select lio window

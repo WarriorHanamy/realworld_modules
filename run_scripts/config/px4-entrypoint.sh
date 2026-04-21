@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -eo pipefail
+WS_DIR="${WS_DIR:-/home/ros/ros2_ws}"
 
 cleanup() {
   if [[ -n "${frontend_pid:-}" ]]; then
@@ -17,7 +18,7 @@ trap cleanup EXIT INT TERM
 
 set +u
 source /opt/ros/humble/setup.bash
-source /root/px4_connector_ws/install/setup.bash
+source "${WS_DIR}/install/setup.bash"
 set -u
 
 echo "Starting Micro XRCE-DDS Agent..."

@@ -50,13 +50,14 @@ SESSION="jetson-prod"
 PX4_IMAGE="vtol/px4-connector-jetson:latest"
 LIO_IMAGE="vtol/lio-jetson:latest"
 INFER_IMAGE="vtol/bht-jetson:latest"
+ROS2_WS_DIR="/home/ros/ros2_ws"
 
 FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml"
 INTERFACE="enP8p1s0"
 LIVOX_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/livox_mid360.json"
 FAST_LIO_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/fastlio_mid360.yaml"
-LIVOX_CONFIG_CONTAINER="/root/ros2_ws/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json"
-FAST_LIO_CONFIG_CONTAINER="/root/ros2_ws/install/fast_lio/share/fast_lio/config/mid360.yaml"
+LIVOX_CONFIG_CONTAINER="${ROS2_WS_DIR}/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json"
+FAST_LIO_CONFIG_CONTAINER="${ROS2_WS_DIR}/install/fast_lio/share/fast_lio/config/mid360.yaml"
 
 JETSON_POLICIES_DIR="/home/nv/server/policies"
 RUNTIME_CONFIG_DIR="/tmp/linker-config"
@@ -337,4 +338,3 @@ echo "  tmux attach -t ${SESSION}"
 echo ""
 
 fn_tmux_attach "$SESSION"
-

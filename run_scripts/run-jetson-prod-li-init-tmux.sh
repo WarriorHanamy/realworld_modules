@@ -25,6 +25,7 @@ FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml"
 INTERFACE="enP8p1s0"
 LIVOX_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/livox_mid360.json"
 LIVOX_CONFIG_CONTAINER="/root/catkin_ws/src/livox_ros_driver2/config/MID360_config.json"
+ROS2_WS_DIR="/home/ros/ros2_ws"
 
 # Validate config file
 if [[ ! -f "$FASTDDS_CONFIG" ]]; then
@@ -81,7 +82,7 @@ imu_sender_cmd="docker run --rm --network host --ipc host --privileged \
   -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro \
   -v /tmp:/tmp \
   ${PX4_IMAGE} \
-   bash -c 'set +u; source /opt/ros/humble/setup.bash; source /root/px4_connector_ws/install/setup.bash; set -u; ros2 launch imu_bridge sender.launch.py output_mode:=socket'"
+   bash -c 'set +u; source /opt/ros/humble/setup.bash; source ${ROS2_WS_DIR}/install/setup.bash; set -u; ros2 launch imu_bridge sender.launch.py output_mode:=socket'"
 fn_tmux_pane_run "$SESSION" "imu-sender" "" "$imu_sender_cmd"
 
 # Window 2: Calibration (bag playback or live sensor)

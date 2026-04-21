@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -eo pipefail
+WS_DIR="${WS_DIR:-/home/ros/ros2_ws}"
 set +u
 source /opt/ros/humble/setup.bash
-source /root/ros2_ws/install/setup.bash
+source "${WS_DIR}/install/setup.bash"
 set -u
 
 echo "Starting Livox driver..."
