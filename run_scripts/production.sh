@@ -249,6 +249,7 @@ docker run --rm --name ${EXECUTOR_CONTAINER_NAME} \
   -e ROS_DOMAIN_ID=30 \
   -e ROS_LOCALHOST_ONLY=1 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  -v ${JETSON_POLICIES_DIR}:/home/ros/policies:ro \
   ${INFER_IMAGE} bash -c 'set +u; source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash; set -u; ros2 launch neural_executor neural_executor.launch.py'
 EOF
 )
@@ -259,13 +260,9 @@ EOF
   fn_tmux_window_new "$SESSION" "infer"
 
   infer_cmd=$(cat <<EOF
-docker run --rm --name ${INFER_CONTAINER_NAME} \
-  --user root --net=host --ipc=host --privileged \
-  -e ROS_DOMAIN_ID=30 \
-  -e ROS_LOCALHOST_ONLY=1 \
-  -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
-  -v ${JETSON_POLICIES_DIR}:/home/ros/policies:ro \
-  ${INFER_IMAGE} bash -c 'set +u; source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash; set -u; python3 -m neural_manager.neural_inference.neural_infer'
+sleep 15 && \
+docker exec -it ${EXECUTOR_CONTAINER_NAME} \
+  bash -c 'set +u; source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash; set -u; python3 -m neural_manager.neural_inference.neural_infer'
 EOF
 )
 
