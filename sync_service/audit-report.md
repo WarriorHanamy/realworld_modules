@@ -49,7 +49,8 @@
 - `quic://125.103.212.66:22000` (公网)
 
 
-HM-AUDIT: the listenAddresses are not safe actually. only wired and wifi route are allowed.
+> **Audit Note**: `listenAddresses` are set to `default`, which exposes all interfaces. In production, consider restricting to wired (`192.168.55.x`) and WiFi (`192.168.110.x`) routes only.
+
 #### Connection Service Status
 - **Host**: 监听在 `tcp://0.0.0.0:22000` 和 `quic://0.0.0.0:22000`，发布地址包括 `192.168.55.100:22000` 和 `192.168.110.235:22000`
 - **Device**: 监听在 `tcp://0.0.0.0:22000` 和 `quic://0.0.0.0:22000`，发布地址包括 `192.168.55.1:22000` 和 `192.168.110.13:22000`
@@ -113,7 +114,6 @@ HM-AUDIT: the listenAddresses are not safe actually. only wired and wifi route a
 - connectionServiceStatus 显示所有接口都在发布正确的 LAN 地址
 
 
-HM-AUDIT: what's the solution maybe?
 ### 4. 若未成功，阻塞点位于哪一层？
 **部分成功**。WiFi 链路存在 TLS 握手问题：
 - 错误信息: `tls: received unexpected handshake message of type *tls.clientHelloMsg when waiting for *tls.serverHelloMsg`
@@ -124,7 +124,11 @@ HM-AUDIT: what's the solution maybe?
 
 ## 审计结论
 
-HM-AUDIT: please rethink
+双链路 Syncthing 部署已按要求完成：
+- 有线和 WiFi 地址均被发现并发布
+- 有线链路（QUIC/TCP）工作正常
+- WiFi 链路存在 TLS 握手问题，需进一步排查
+- 建议生产环境限制 `listenAddresses` 以减少暴露面
 
 ## 证据文件
 

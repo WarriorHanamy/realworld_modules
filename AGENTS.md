@@ -23,9 +23,13 @@ Device config: `sync_service/sync_env` (DEVICE_IP, DEVICE_USER, SSH_KEY, etc.)
 
 ## Run Scripts Convention
 
-- `run_scripts/` holds entry scripts for the Jetson device.
-- Filename: `run-{platform}-{mode}-{feature}.sh` (platform: `jetson` or `host`, mode: `debug` or `prod`)
-- Each script handles one service.
+- `run_scripts/` holds entry scripts for the Jetson device, host tools, and shared utilities.
+- **Preferred entry-script pattern**: `run-{platform}-{mode}-{feature}.sh` (platform: `jetson` or `host`, mode: `debug` or `prod`)
+- **Utility patterns observed**:
+  - `host-{action}-{feature}.sh` — host-side ops scripts (e.g., `host-sync-policies.sh`)
+  - `jetson-{action}-{feature}.sh` — Jetson-side ops scripts (e.g., `jetson-check-cuda-status.sh`)
+  - `calib_run.sh`, `kill_all.sh`, `restart-syncthing.sh` — ad-hoc utility scripts
+- **Orchestration scripts** (e.g., `production.sh`) may manage multiple services and therefore do not follow the single-service naming pattern.
 - Prefer `tmux_utils.sh` for process lifecycle management when orchestrating multiple services.
 
 ## ROS2 Workspace Convention

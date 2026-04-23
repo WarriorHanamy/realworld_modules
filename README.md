@@ -1,6 +1,18 @@
-# Run Scripts - Jetson Production Linker Pipeline
+# RealWorld Modules — Jetson Run Scripts & Integration Workflows
 
-This document describes the **production linker pipeline** (`run-jetson-prod-li-init-tmux.sh`), which performs real-time LiDAR-IMU initialization on Jetson devices.
+This repository provides the assembly-layer run scripts, configuration templates, and integration workflows for the VTOL Jetson production stack. Subfolders (`linker/`, `tools/`, `vtol_behavior_manager/`) are developed independently; this root directory orchestrates them into easy-to-use pipelines.
+
+## Repository Overview
+
+| Category | Scripts | Purpose |
+|----------|---------|---------|
+| **Production Stack** | `production.sh`, `run-jetson-prod-linker.sh`, `run-jetson-prod-bht.sh` | Full or partial production pipelines |
+| **LiDAR-IMU Init** | `run-jetson-prod-li-init-tmux.sh` | Real-time LiDAR-IMU calibration |
+| **Neural Inference** | `run-jetson-prod-neural-infer.sh` | Standalone behavior-policy inference |
+| **Debug / Host** | `run-host-debug-*`, `run-jetson-debug-*` | Local development and debugging tools |
+| **Utilities** | `tmux_utils.sh`, `host-sync-policies.sh`, `kill_all.sh` | Shared helpers and ops scripts |
+
+The rest of this document provides a detailed deep-dive into the **LiDAR-IMU initialization pipeline** (`run-jetson-prod-li-init-tmux.sh`). For other pipelines, refer to the inline comments in each script.
 
 ## Overview
 
@@ -291,11 +303,14 @@ tmux kill-session -t jetson-debug-li-init
 
 | File | Purpose |
 |------|---------|
-| `run_scripts/run-jetson-prod-li-init-tmux.sh` | Main entry script |
-| `run_scripts/tmux_utils.sh` | tmux helper functions |
-| `run_scripts/config/fastdds-debug.xml` | FastDDS profile (ROS2) |
-| `run_scripts/config/livox_mid360.json` | Livox driver template |
-| `run_scripts/config/fastlio_mid360.yaml` | Fast LIO config template |
+| `run_scripts/production.sh` | Full production stack (PX4 + LIO + neural executor + inference) |
+| `run_scripts/run-jetson-prod-linker.sh` | PX4 connector + LIO pipeline only |
+| `run_scripts/run-jetson-prod-li-init-tmux.sh` | LiDAR-IMU initialization entry script |
+| `run_scripts/run-jetson-prod-neural-infer.sh` | Standalone neural inference on Jetson |
+| `run_scripts/tmux_utils.sh` | tmux orchestration helpers |
+| `run_scripts/config/fastdds-debug.xml` | FastDDS discovery profile (ROS2) |
+| `run_scripts/config/livox_mid360.json` | Livox MID-360 driver template |
+| `run_scripts/config/fastlio_mid360.yaml` | FAST-LIO config template |
 
 ## Output & Results
 
@@ -351,7 +366,7 @@ Calibration not yet complete. Ensure sufficient excitation (rotate/translate LiD
 After successful calibration:
 1. Copy extrinsic/time offset from `Initialization_result.txt`
 2. Update `fastlio_mid360.yaml` in LIO config
-3. Run integrated LIO+calibration pipeline (`run-jetson-debug-linker-integrated-tmux.sh`) for continuous odometry
+3. Run integrated LIO+calibration pipeline (`run-jetson-prod-linker.sh` or `production.sh --skip-infer`) for continuous odometry
 
 ## References
 
