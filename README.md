@@ -303,7 +303,7 @@ tmux kill-session -t jetson-debug-li-init
 
 | File | Purpose |
 |------|---------|
-| `run_scripts/production.sh` | Full production stack (PX4 + LIO + neural executor + inference) |
+| `run_scripts/production.sh` | Full production stack (PX4 + LIO + neural gate + inference) |
 | `run_scripts/run-jetson-prod-linker.sh` | PX4 connector + LIO pipeline only |
 | `run_scripts/run-jetson-prod-li-init-tmux.sh` | LiDAR-IMU initialization entry script |
 | `run_scripts/run-jetson-prod-neural-infer.sh` | Standalone neural inference on Jetson |

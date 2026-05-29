@@ -9,7 +9,7 @@ set -eo pipefail
 #   2. LIO container:
 #      - livox_ros_driver2 (publishes /livox/lidar)
 #      - FAST-LIO (publishes /Odometry when both IMU and LiDAR exist)
-#   3. Neural executor launch
+#   3. Neural gate launch (mode-switch state machine)
 #   4. Neural inference service (behavior policy evaluation)
 #   5. Shell for interactive debugging
 #
@@ -19,14 +19,14 @@ set -eo pipefail
 #   /px4/imu + /livox/lidar → FAST-LIO → /Odometry
 #   /Odometry → PX4 connector → /fmu/in/vehicle_visual_odometry
 #   /Odometry + sensors → Neural inference → /neural/control
-#   /neural/control → Neural executor → PX4 offboard control
+#   /neural/control → Neural gate → PX4 offboard control
 #
 # Usage:
 #   ./run-jetson-production.sh [OPTIONS]
 #
 # Options:
 #   --skip-linker       Skip PX4 connector and LIO pipeline
-#   --skip-infer        Skip neural executor and inference services
+#   --skip-infer        Skip neural gate and inference services
 #   -h, --help          Show this help message
 # ==============================================================================
 
@@ -63,7 +63,7 @@ FAST_LIO_CONFIG_CONTAINER="${ROS2_WS_DIR}/install/fast_lio/share/fast_lio/config
 JETSON_POLICIES_DIR="/home/nv/server/policies"
 RUNTIME_CONFIG_DIR="/tmp/linker-config"
 PX4_AGENT_REFS="${SCRIPT_DIR}/config/uxrce-agent-local.refs"
-EXECUTOR_CONTAINER_NAME="neural-executor-jetson"
+GATE_CONTAINER_NAME="neural-gate-jetson"
 INFER_CONTAINER_NAME="neural-infer-jetson"
 SHELL_CONTAINER_NAME="inference-shell-jetson"
 
@@ -84,11 +84,11 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Production startup for complete Jetson stack:"
       echo "  - PX4 connector + LIO (sensor fusion)"
-      echo "  - Neural executor + inference (behavior policy)"
+      echo "  - Neural gate + inference (behavior policy)"
       echo ""
       echo "Options:"
       echo "  --skip-linker      Skip PX4 connector + LIO"
-      echo "  --skip-infer       Skip neural executor + inference"
+      echo "  --skip-infer       Skip neural gate + inference"
       echo "  -h, --help         Show this help"
       exit 0
       ;;
@@ -166,7 +166,7 @@ if [[ "$START_LINKER" == "true" ]]; then
 fi
 
 if [[ "$START_INFER" == "true" ]]; then
-  docker ps -a --filter "name=${EXECUTOR_CONTAINER_NAME}" -q | xargs -r docker rm -f 2>/dev/null || true
+  docker ps -a --filter "name=${GATE_CONTAINER_NAME}" -q | xargs -r docker rm -f 2>/dev/null || true
   docker ps -a --filter "name=${INFER_CONTAINER_NAME}" -q | xargs -r docker rm -f 2>/dev/null || true
   docker ps -a --filter "name=${SHELL_CONTAINER_NAME}" -q | xargs -r docker rm -f 2>/dev/null || true
 fi
@@ -239,29 +239,29 @@ fi
 
 # --- Window 3+: Neural Services (if --skip-infer not set) -----------------
 if [[ "$START_INFER" == "true" ]]; then
-  echo "Starting neural executor..."
-  fn_tmux_window_new "$SESSION" "executor"
+  echo "Starting neural gate..."
+  fn_tmux_window_new "$SESSION" "gate"
 
-  executor_cmd=$(cat <<EOF
+  gate_cmd=$(cat <<EOF
 sleep 10 && \
-docker run --rm --name ${EXECUTOR_CONTAINER_NAME} \
+docker run --rm --name ${GATE_CONTAINER_NAME} \
   --user root --net=host --ipc=host --privileged \
   -e ROS_DOMAIN_ID=30 \
   -e ROS_LOCALHOST_ONLY=1 \
   -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
   -v ${JETSON_POLICIES_DIR}:/home/ros/policies:ro \
-  ${INFER_IMAGE} bash -c 'set +u; source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash; set -u; ros2 launch neural_executor neural_executor.launch.py'
+  ${INFER_IMAGE} bash -c 'set +u; source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash; set -u; ros2 launch neural_gate neural_gate.launch.py'
 EOF
 )
 
-  fn_tmux_pane_run "$SESSION" "executor" "" "$executor_cmd"
+  fn_tmux_pane_run "$SESSION" "gate" "" "$gate_cmd"
 
   echo "Starting neural inference..."
   fn_tmux_window_new "$SESSION" "infer"
 
   infer_cmd=$(cat <<EOF
 sleep 15 && \
-docker exec -it ${EXECUTOR_CONTAINER_NAME} \
+docker exec -it ${GATE_CONTAINER_NAME} \
   bash -c 'set +u; source /opt/ros/humble/setup.bash && source /home/ros/ros2_ws/install/setup.bash; set -u; python3 -m neural_manager.neural_inference.neural_infer'
 EOF
 )
@@ -307,12 +307,12 @@ Data Flow:
   /px4/imu + /livox/lidar → FAST-LIO → /Odometry
   /Odometry → PX4 connector → /fmu/in/vehicle_visual_odometry
 $(if [[ "$START_INFER" == "true" ]]; then echo "  /Odometry + sensors → Neural inference → /neural/control"; fi)
-$(if [[ "$START_INFER" == "true" ]]; then echo "  /neural/control → Neural executor → PX4 offboard control"; fi)
+$(if [[ "$START_INFER" == "true" ]]; then echo "  /neural/control → Neural gate → PX4 offboard control"; fi)
 
 Windows:
   1. px4-connector - PX4 connector output
   2. lio - LiDAR and FAST-LIO output
-$(if [[ "$START_INFER" == "true" ]]; then echo "  3. executor - Neural executor launch"; fi)
+$(if [[ "$START_INFER" == "true" ]]; then echo "  3. gate - Neural gate launch"; fi)
 $(if [[ "$START_INFER" == "true" ]]; then echo "  4. infer - Neural inference service"; fi)
 $(if [[ "$START_INFER" == "true" ]]; then echo "  5. shell - Interactive inference shell"; fi)
   (last) monitor - This monitor
@@ -323,7 +323,7 @@ To check topics:
 To attach to specific windows:
   tmux select-window -t ${SESSION}:px4-connector
   tmux select-window -t ${SESSION}:lio
-$(if [[ "$START_INFER" == "true" ]]; then echo "  tmux select-window -t ${SESSION}:executor"; fi)
+$(if [[ "$START_INFER" == "true" ]]; then echo "  tmux select-window -t ${SESSION}:gate"; fi)
 $(if [[ "$START_INFER" == "true" ]]; then echo "  tmux select-window -t ${SESSION}:infer"; fi)
 $(if [[ "$START_INFER" == "true" ]]; then echo "  tmux select-window -t ${SESSION}:shell"; fi)
 MONITOR_TEXT
@@ -350,7 +350,7 @@ if [[ "$START_LINKER" == "true" ]]; then
   echo "  ✓ LIO pipeline (PX4 + LiDAR + FAST-LIO)"
 fi
 if [[ "$START_INFER" == "true" ]]; then
-  echo "  ✓ Neural executor + inference (behavior policy)"
+  echo "  ✓ Neural gate + inference (behavior policy)"
 fi
 echo ""
 echo "Attach to session:"
