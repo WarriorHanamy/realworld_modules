@@ -30,7 +30,7 @@ def rotation_matrix(roll_deg, pitch_deg, yaw_deg):
 
 def main():
     if len(sys.argv) != 4:
-        print("Usage: cal_rot.py <roll_deg> <pitch_deg> <yaw_deg>")
+        print("Usage: config/cal_rot.py <roll_deg> <pitch_deg> <yaw_deg>")
         sys.exit(1)
 
     roll = float(sys.argv[1])

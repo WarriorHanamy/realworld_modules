@@ -2,7 +2,7 @@
 set -eo pipefail
 
 # =============================================================================
-# run-jetson-production.sh — Production startup for full Jetson stack
+# run-jetson-prod-stack.sh — Production startup for full Jetson stack
 #
 # Orchestrates a complete production pipeline:
 #   1. PX4 connector (publishes /px4/imu)
@@ -22,7 +22,7 @@ set -eo pipefail
 #   /neural/control → Neural gate → PX4 offboard control
 #
 # Usage:
-#   ./run-jetson-production.sh [OPTIONS]
+#   ./run-jetson-prod-stack.sh [OPTIONS]
 #
 # Options:
 #   --skip-linker       Skip PX4 connector and LIO pipeline

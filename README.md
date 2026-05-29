@@ -6,13 +6,13 @@ This repository provides the assembly-layer run scripts, configuration templates
 
 | Category | Scripts | Purpose |
 |----------|---------|---------|
-| **Production Stack** | `production.sh`, `run-jetson-prod-linker.sh`, `run-jetson-prod-bht.sh` | Full or partial production pipelines |
-| **LiDAR-IMU Init** | `run-jetson-prod-li-init-tmux.sh` | Real-time LiDAR-IMU calibration |
+| **Production Stack** | `run-jetson-prod-stack.sh`, `run-jetson-prod-linker.sh`, `run-jetson-prod-bht.sh` | Full or partial production pipelines |
+| **LiDAR-IMU Init** | `run-jetson-prod-lio-init-tmux.sh` | Real-time LiDAR-IMU calibration |
 | **Neural Inference** | `run-jetson-prod-neural-infer.sh` | Standalone behavior-policy inference |
 | **Debug / Host** | `run-host-debug-*`, `run-jetson-debug-*` | Local development and debugging tools |
-| **Utilities** | `tmux_utils.sh`, `host-sync-policies.sh`, `kill_all.sh` | Shared helpers and ops scripts |
+| **Utilities** | `tmux_utils.sh`, `host-sync-policies.sh`, `host-kill-all-containers.sh` | Shared helpers and ops scripts |
 
-The rest of this document provides a detailed deep-dive into the **LiDAR-IMU initialization pipeline** (`run-jetson-prod-li-init-tmux.sh`). For other pipelines, refer to the inline comments in each script.
+The rest of this document provides a detailed deep-dive into the **LiDAR-IMU initialization pipeline** (`run-jetson-prod-lio-init-tmux.sh`). For other pipelines, refer to the inline comments in each script.
 
 ## Overview
 
@@ -25,7 +25,7 @@ The pipeline orchestrates three main components in a tmux session:
 
 ```mermaid
 flowchart TD
-    Start["Start script<br/>run-jetson-prod-li-init-tmux.sh"] --> ConfigGen["Generate runtime config<br/>discover IPs and render templates"]
+    Start["Start script<br/>run-jetson-prod-lio-init-tmux.sh"] --> ConfigGen["Generate runtime config<br/>discover IPs and render templates"]
     ConfigGen --> Cleanup["Cleanup old containers<br/>kill host rosmaster"]
     Cleanup --> TmuxStart["Start tmux session<br/>jetson-debug-li-init"]
 
@@ -144,7 +144,7 @@ flowchart TD
 
 | Time (s) | Event | Component | Details |
 |----------|-------|-----------|---------|
-| T+0.0 | Script start | `run-jetson-prod-li-init-tmux.sh` | Parse args, validate Docker images |
+| T+0.0 | Script start | `run-jetson-prod-lio-init-tmux.sh` | Parse args, validate Docker images |
 | T+0.5 | Config generation | Host | Render `livox_mid360.json`, `fastlio_mid360.yaml` with discovered IPs |
 | T+0.8 | Cleanup | Host | `docker stop/rm` old containers, `pkill rosmaster` on port 11311 |
 | T+1.0 | tmux session | tmux | Create `jetson-debug-li-init` with 4 windows |
@@ -249,7 +249,7 @@ flowchart LR
 
 ### Live Sensor Mode (Default)
 ```bash
-./run-jetson-prod-li-init-tmux.sh
+./run-jetson-prod-lio-init-tmux.sh
 ```
 - Discovers LiDAR IP via ARP on `enP8p1s0`
 - Generates Livox config with host/LiDAR IPs
@@ -257,7 +257,7 @@ flowchart LR
 
 ### Bag Playback Mode
 ```bash
-./run-jetson-prod-li-init-tmux.sh --bag /path/to/calibration.bag
+./run-jetson-prod-lio-init-tmux.sh --bag /path/to/calibration.bag
 ```
 - Plays bag file instead of live Livox driver
 - Useful for offline calibration/testing
@@ -303,9 +303,9 @@ tmux kill-session -t jetson-debug-li-init
 
 | File | Purpose |
 |------|---------|
-| `run_scripts/production.sh` | Full production stack (PX4 + LIO + neural gate + inference) |
+| `run_scripts/run-jetson-prod-stack.sh` | Full production stack (PX4 + LIO + neural gate + inference) |
 | `run_scripts/run-jetson-prod-linker.sh` | PX4 connector + LIO pipeline only |
-| `run_scripts/run-jetson-prod-li-init-tmux.sh` | LiDAR-IMU initialization entry script |
+| `run_scripts/run-jetson-prod-lio-init-tmux.sh` | LiDAR-IMU initialization entry script |
 | `run_scripts/run-jetson-prod-neural-infer.sh` | Standalone neural inference on Jetson |
 | `run_scripts/tmux_utils.sh` | tmux orchestration helpers |
 | `run_scripts/config/fastdds-debug.xml` | FastDDS discovery profile (ROS2) |
@@ -366,7 +366,7 @@ Calibration not yet complete. Ensure sufficient excitation (rotate/translate LiD
 After successful calibration:
 1. Copy extrinsic/time offset from `Initialization_result.txt`
 2. Update `fastlio_mid360.yaml` in LIO config
-3. Run integrated LIO+calibration pipeline (`run-jetson-prod-linker.sh` or `production.sh --skip-infer`) for continuous odometry
+3. Run integrated LIO+calibration pipeline (`run-jetson-prod-linker.sh` or `run-jetson-prod-stack.sh --skip-infer`) for continuous odometry
 
 ## References
 

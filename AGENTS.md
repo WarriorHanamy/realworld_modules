@@ -28,8 +28,8 @@ Device config: `sync_service/sync_env` (DEVICE_IP, DEVICE_USER, SSH_KEY, etc.)
 - **Utility patterns observed**:
   - `host-{action}-{feature}.sh` — host-side ops scripts (e.g., `host-sync-policies.sh`)
   - `jetson-{action}-{feature}.sh` — Jetson-side ops scripts (e.g., `jetson-check-cuda-status.sh`)
-  - `calib_run.sh`, `kill_all.sh`, `restart-syncthing.sh` — ad-hoc utility scripts
-- **Orchestration scripts** (e.g., `production.sh`) may manage multiple services and therefore do not follow the single-service naming pattern.
+  - `host-kill-all-containers.sh`, `host-restart-syncthing.sh` — host utility scripts
+- **Orchestration scripts** (e.g., `run-jetson-prod-stack.sh`) may manage multiple services and therefore use a broader naming scope.
 - Prefer `tmux_utils.sh` for process lifecycle management when orchestrating multiple services.
 
 ## ROS2 Workspace Convention
