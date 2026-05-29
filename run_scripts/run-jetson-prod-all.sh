@@ -47,7 +47,7 @@ LIVOX_CONFIG_CONTAINER="${ROS2_WS_DIR}/install/livox_ros_driver2/share/livox_ros
 FAST_LIO_CONFIG_CONTAINER="${ROS2_WS_DIR}/install/fast_lio/share/fast_lio/config/mid360.yaml"
 
 POLICIES_DIR="/home/nv/server/policies"
-FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml"
+FASTDDS_CONFIG="${SCRIPT_DIR}/config/fastdds-local.xml"
 RUNTIME_CONFIG_DIR="/tmp/linker-config"
 PX4_AGENT_REFS="${SCRIPT_DIR}/config/uxrce-agent-local.refs"
 
@@ -204,8 +204,10 @@ if [[ "$START_INFER" == "true" ]]; then
     --ipc=host \
     --privileged \
     -e ROS_DOMAIN_ID=30 \
+    -e ROS_LOCALHOST_ONLY=1 \
     -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
     -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
+    -e FASTDDS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml \
     -v "${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro" \
     "${POLICIES_VOLUME[@]}" \
     "${BHT_IMAGE}" \
@@ -230,7 +232,7 @@ if [[ "$START_LINKER" == "true" ]]; then
   echo "Starting LIO container..."
   fn_tmux_window_new "$SESSION" "lio"
 
-  lio_cmd="docker run --rm --name lio-jetson --net=host --ipc=host --cpuset-cpus=2,3,4,5 -e ROS_DOMAIN_ID=30 -e ROS_LOCALHOST_ONLY=1 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -v ${RUNTIME_CONFIG_DIR}/livox_mid360.json:${LIVOX_CONFIG_CONTAINER}:ro -v ${RUNTIME_CONFIG_DIR}/fastlio_mid360.yaml:${FAST_LIO_CONFIG_CONTAINER}:ro -v ${SCRIPT_DIR}/config/lio-entrypoint.sh:/entrypoint.sh:ro --entrypoint '' ${LIO_IMAGE} bash /entrypoint.sh"
+  lio_cmd="docker run --rm --name lio-jetson --net=host --ipc=host --cpuset-cpus=2,3,4,5 -e ROS_DOMAIN_ID=30 -e ROS_LOCALHOST_ONLY=1 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -e FASTDDS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${RUNTIME_CONFIG_DIR}/livox_mid360.json:${LIVOX_CONFIG_CONTAINER}:ro -v ${RUNTIME_CONFIG_DIR}/fastlio_mid360.yaml:${FAST_LIO_CONFIG_CONTAINER}:ro -v ${SCRIPT_DIR}/config/lio-entrypoint.sh:/entrypoint.sh:ro --entrypoint '' ${LIO_IMAGE} bash /entrypoint.sh"
   fn_tmux_pane_run "$SESSION" "lio" "" "$lio_cmd"
 fi
 
