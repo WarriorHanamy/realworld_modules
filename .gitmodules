@@ -4,6 +4,7 @@
 [submodule "vtol_behavior_manager"]
 	path = vtol_behavior_manager
 	url = https://github.com/WarriorHanamy/vtol_behavior_manager.git
+	branch = track
 [submodule "linker"]
 	path = linker
 	url = https://github.com/WarriorHanamy/vtol-linker.git
