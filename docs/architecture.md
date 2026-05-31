@@ -80,18 +80,18 @@ TOOLS --> DDSBUS : debug topics
 @enduml
 ```
 
-' Source anchors:
-' - NeuralGate: vtol_behavior_manager/src/neural_gate/src/neural_gate_track.hpp
-' - InferenceNode: vtol_behavior_manager/src/neural_inference/scripts/neural_infer_entrypoint_node.py
-' - PX4Observer: vtol_behavior_manager/src/neural_inference/neural_inference/features/observer_px4.py
-' - OnnxMLPActor: vtol_behavior_manager/src/neural_inference/neural_inference/control/actor_mlp_onnx.py
-' - PX4SetpointGenerator: vtol_behavior_manager/src/neural_inference/neural_inference/control/generator_px4_setpoint.py
-' - ImuTopicSender: linker/px4_connector/src/src/imu_topic_sender.cpp
-' - ImuSocketSender: linker/px4_connector/src/src/imu_socket_sender.cpp
-' - Px4VisualOdometryBridge: linker/px4_connector/src/src/px4_visual_odometry_bridge.cpp
-' - FAST-LIO2: linker/lidar_connector/FAST_LIO_ROS2/src/IMU_Processing.hpp
-' - Livox Driver: linker/lidar_connector/livox_ros_driver2/src/livox_ros_driver2.cpp
-' - run-jetson-prod-all.sh: run_scripts/run-jetson-prod-all.sh
+**Source anchors:**
+- NeuralGate: `vtol_behavior_manager/src/neural_gate/src/neural_gate_track.hpp`
+- InferenceNode: `vtol_behavior_manager/src/neural_inference/scripts/neural_infer_entrypoint_node.py`
+- PX4Observer: `vtol_behavior_manager/src/neural_inference/neural_inference/features/observer_px4.py`
+- OnnxMLPActor: `vtol_behavior_manager/src/neural_inference/neural_inference/control/actor_mlp_onnx.py`
+- PX4SetpointGenerator: `vtol_behavior_manager/src/neural_inference/neural_inference/control/generator_px4_setpoint.py`
+- ImuTopicSender: `linker/px4_connector/src/src/imu_topic_sender.cpp`
+- ImuSocketSender: `linker/px4_connector/src/src/imu_socket_sender.cpp`
+- Px4VisualOdometryBridge: `linker/px4_connector/src/src/px4_visual_odometry_bridge.cpp`
+- FAST-LIO2: `linker/lidar_connector/FAST_LIO_ROS2/src/IMU_Processing.hpp`
+- Livox Driver: `linker/lidar_connector/livox_ros_driver2/src/livox_ros_driver2.cpp`
+- run-jetson-prod-all.sh: `run_scripts/run-jetson-prod-all.sh`
 
 ---
 
@@ -149,15 +149,15 @@ PX4CONT .. BHTCONT : "ROS2 DDS\nDOMAIN_ID=30"
 @enduml
 ```
 
-' Source anchors:
-' - run-jetson-prod-all.sh: run_scripts/run-jetson-prod-all.sh (image names, container configs, CPU pinning)
-' - linker/Makefile: linker/Makefile lines 136-142 (docker run flags)
-' - sync_service/sync_env: sync_service/sync_env (IPs, user, folders)
-' - fastdds-local.xml: run_scripts/config/fastdds-local.xml (127.0.0.1 only)
-' - fastdds-debug.xml: run_scripts/config/fastdds-debug.xml (multi-interface)
-' - px4-entrypoint.sh: run_scripts/config/px4-entrypoint.sh (device, baudrate)
-' - bht.jetson.Dockerfile: vtol_behavior_manager/dockerfiles/bht.jetson.Dockerfile
-' - Host debug: run-host-debug-px4-plotjuggler.sh, run-host-debug-lio-rviz.sh
+**Source anchors:**
+- `run_scripts/run-jetson-prod-all.sh` — image names, container configs, CPU pinning
+- `linker/Makefile` lines 136-142 — docker run flags
+- `sync_service/sync_env` — IPs, user, folders
+- `run_scripts/config/fastdds-local.xml` — 127.0.0.1 only
+- `run_scripts/config/fastdds-debug.xml` — multi-interface
+- `run_scripts/config/px4-entrypoint.sh` — device, baudrate
+- `vtol_behavior_manager/dockerfiles/bht.jetson.Dockerfile`
+- `run-host-debug-px4-plotjuggler.sh`, `run-host-debug-lio-rviz.sh` — host debug
 
 ---
 
@@ -212,13 +212,13 @@ CLOUDREG --> BHTCONT : "debug"
 @enduml
 ```
 
-' Source anchors:
-' - neural_gate_track.hpp: vtol_behavior_manager/src/neural_gate/src/neural_gate_track.hpp lines 60-111
-' - neural_infer_entrypoint_node.py: vtol_behavior_manager/src/neural_inference/scripts/neural_infer_entrypoint_node.py lines 84-86, 105-117
-' - generator_px4_setpoint.py: vtol_behavior_manager/src/neural_inference/neural_inference/control/generator_px4_setpoint.py
-' - imu_socket_sender.cpp: linker/px4_connector/src/src/imu_socket_sender.cpp
-' - px4_visual_odometry_bridge.cpp: linker/px4_connector/src/src/px4_visual_odometry_bridge.cpp
-' - px4-entrypoint.sh: run_scripts/config/px4-entrypoint.sh lines 30-40
+**Source anchors:**
+- `vtol_behavior_manager/src/neural_gate/src/neural_gate_track.hpp` lines 60-111
+- `vtol_behavior_manager/src/neural_inference/scripts/neural_infer_entrypoint_node.py` lines 84-86, 105-117
+- `vtol_behavior_manager/src/neural_inference/neural_inference/control/generator_px4_setpoint.py`
+- `linker/px4_connector/src/src/imu_socket_sender.cpp`
+- `linker/px4_connector/src/src/px4_visual_odometry_bridge.cpp`
+- `run_scripts/config/px4-entrypoint.sh` lines 30-40
 
 ---
 
@@ -289,15 +289,15 @@ state "InferenceNode Lifecycle" as LIFECYCLE {
 @enduml
 ```
 
-' Source anchors:
-' - neural_gate_track.hpp: vtol_behavior_manager/src/neural_gate/src/neural_gate_track.hpp lines 173-206 (tick)
-' - neural_gate_track.hpp: lines 113-136 (evaluateTrigger)
-' - neural_gate_track.hpp: lines 138-165 (offboard heartbeat/command)
-' - neural_gate_track.hpp: lines 29-34 (config: button_mask=1024, aux1 thresholds, warmup=300ms)
-' - neural_infer_entrypoint_node.py: lines 53-62 (LifecycleNode), lines 81-130 (on_configure)
-' - neural_infer_entrypoint_node.py: lines 211-218 (on_activate), lines 288-328 (_run_inference)
-' - neural_infer_entrypoint_node.py: lines 275-287 (_on_reset_track session reset)
-' - observer_px4.py: vtol_behavior_manager/src/neural_inference/neural_inference/features/observer_px4.py lines 103-114 (reset_session), lines 128-150 (advance_step, circular)
+**Source anchors:**
+- `vtol_behavior_manager/src/neural_gate/src/neural_gate_track.hpp` lines 173-206 — tick
+- lines 113-136 — evaluateTrigger
+- lines 138-165 — offboard heartbeat/command
+- lines 29-34 — config: button_mask=1024, aux1 thresholds, warmup=300ms
+- `vtol_behavior_manager/src/neural_inference/scripts/neural_infer_entrypoint_node.py` lines 53-62 — LifecycleNode; lines 81-130 — on_configure
+- lines 211-218 — on_activate; lines 288-328 — _run_inference
+- lines 275-287 — _on_reset_track session reset
+- `vtol_behavior_manager/src/neural_inference/neural_inference/features/observer_px4.py` lines 103-114 — reset_session; lines 128-150 — advance_step, circular
 
 ---
 
@@ -336,9 +336,9 @@ LIINIT --> RESULT : "extrinsic, time offset, gravity, biases"
 @enduml
 ```
 
-' Source anchors:
-' - run_scripts/run-jetson-debug-calib-lidar-imu.sh (full calibration pipeline)
-' - linker/px4_connector/src/src/imu_socket_sender.cpp (socket sender)
-' - linker/LiDAR_IMU_Init/ (calibration solver)
-' - run_scripts/config/px4-entrypoint.sh (topic vs socket mode selection)
-' - Socket format: linker/px4_connector/src/include/px4_connector/imu_socket_sender_component.hpp lines 22-27 (struct ImuData)
+**Source anchors:**
+- `run_scripts/run-jetson-debug-calib-lidar-imu.sh` — full calibration pipeline
+- `linker/px4_connector/src/src/imu_socket_sender.cpp` — socket sender
+- `linker/LiDAR_IMU_Init/` — calibration solver
+- `run_scripts/config/px4-entrypoint.sh` — topic vs socket mode selection
+- Socket format: `linker/px4_connector/src/include/px4_connector/imu_socket_sender_component.hpp` lines 22-27 — struct ImuData
