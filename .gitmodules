@@ -1,5 +1,5 @@
-[submodule "tools"]
-	path = tools
+[submodule "debugger"]
+	path = debugger
 	url = https://github.com/WarriorHanamy/vtol-tools.git
 [submodule "vtol_behavior_manager"]
 	path = vtol_behavior_manager

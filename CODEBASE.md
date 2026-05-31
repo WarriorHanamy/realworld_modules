@@ -1,0 +1,495 @@
+# Codebase Documentation
+
+> Auto-generated repository documentation — 2026-05-31
+
+## Overview
+
+`realworld_modules` is an **assembly-layer integration framework** for a **VTOL (Vertical Take-Off and Landing) UAV** autonomous flight stack running on an **NVIDIA Jetson Orin** edge computer. It orchestrates three independently developed submodules — **linker** (sensor fusion: LiDAR-IMU calibration + Fast-LIO SLAM + PX4 connector), **vtol_behavior_manager** (neural behavior: state machine gate + ONNX policy inference), and **tools** (host-side visualization: PlotJuggler, RViz2) — into unified production pipelines via tmux-orchestrated Docker containers. Communication runs over ROS2 Humble + FastDDS on `ROS_DOMAIN_ID=30`.
+
+## Repository Structure
+
+```
+realworld_modules/                 # Assembly layer
+├── run_scripts/                   # Entry scripts for host/Jetson deployment
+│   ├── config/                    # FastDDS XML, Livox JSON, Fast-LIO YAML, entrypoints
+│   ├── tmux_utils.sh              # Shared tmux orchestration library
+│   ├── run-jetson-prod-all.sh     # Full production stack orchestrator
+│   ├── run-jetson-prod-lio-init-tmux.sh  # LiDAR-IMU calibration entry
+│   ├── run-jetson-debug-linker.sh
+│   ├── run-host-debug-lio-rviz.sh
+│   ├── run-host-debug-px4-plotjuggler.sh
+│   └── host-*.sh                  # Utility scripts (kill, sync, check)
+├── linker/                        # [SUBMODULE] Sensor processing pipeline
+│   ├── dockerfiles/               # L4T base, LIO, PX4 connector, calibration Dockerfiles
+│   ├── lidar_connector/           # FAST-LIO2 + Livox driver (ROS2)
+│   ├── px4_connector/             # PX4 IMU bridge + Micro-XRCE-DDS-Agent (ROS2)
+│   └── LiDAR_IMU_Init/            # LI-Init calibration (ROS1 Noetic)
+├── vtol_behavior_manager/         # [SUBMODULE] Neural behavior stack
+│   ├── docker-compose.yml         # Full simulation: BHT + PX4 SITL + QGC
+│   ├── src/neural_gate/           # C++ mode-switch state machine
+│   ├── src/neural_inference/      # Python ONNX policy inference (LifecycleNode)
+│   └── test/                      # Pytest test suite
+├── tools/                         # [SUBMODULE] Host visualization tools
+│   └── dockerfiles/               # PlotJuggler, FastLIO debug (RViz2)
+└── sync_service/                  # Syncthing + SSH device sync infrastructure
+```
+
+### Architecture Pattern
+
+**Polyrepo-with-root-assembly**: Each subfolder is a standalone Git submodule. The root provides integration glue — `run_scripts/`, `sync_service/`, and top-level `AGENTS.md`. No root-level Makefile; orchestration is delegated to submodule Makefiles and `run_scripts/` shell scripts.
+
+### File Naming Conventions
+
+- **Run scripts**: `run-{platform}-{mode}-{feature}.sh` (e.g., `run-jetson-prod-all.sh`)
+- **Host utilities**: `host-{action}-{feature}.sh`
+- **Dockerfiles**: `{service}.{platform}.Dockerfile` or `{service}.Dockerfile`
+- **Config**: Named by target (`fastlio_mid360.yaml`, `livox_mid360.json`, `fastdds-{variant}.xml`)
+
+## Getting Started
+
+### Prerequisites
+
+- **Host**: Arch Linux with Docker, SSH key access to Jetson
+- **Jetson device**: NVIDIA Orin NX, L4T r36.x, Docker, CUDA, passwordless sudo
+- **Network**: Host `192.168.55.100`, Device `192.168.55.1` over USB-Ethernet bridge
+- **ROS2 domain**: `ROS_DOMAIN_ID=30` used everywhere
+
+### Device Setup
+
+```bash
+# 1. Configure device connection
+cp sync_service/sync_env.example sync_service/sync_env
+# Edit DEVICE_IP, DEVICE_USER, SSH_KEY
+
+# 2. Full setup (SSH key, sudo, Syncthing, UFW, apt mirrors)
+sync_service/entrypoint.sh setup
+
+# 3. Verify dual-network connectivity
+sync_service/verify_dual_network.sh
+```
+
+### Building Docker Images
+
+All images are built **natively on the Jetson** via SSH (no cross-compilation):
+
+```bash
+# From linker/ directory on host:
+make docker-build-base-jetson       # Base L4T + ROS2 Humble image
+make docker-build-lio-jetson        # FAST-LIO2 + Livox driver
+make docker-build-px4-connector-jetson  # PX4 connector + XRCE agent
+make docker-build-calib-jetson      # LI-Init calibration (2-stage cross-build)
+
+# From vtol_behavior_manager/ directory on host:
+make docker-build-bht-jetson        # Neural behavior image
+```
+
+### Image Naming Convention
+
+`vtol/{service}-{platform}:latest`
+
+| Image | Platform | Purpose |
+|-------|----------|---------|
+| `vtol/l4t-ros2-base-jetson` | jetson (arm64) | Shared base |
+| `vtol/px4-connector-jetson` | jetson | PX4 bridge |
+| `vtol/lio-jetson` | jetson | FAST-LIO SLAM |
+| `vtol/calib-lidar-imu-init-jetson` | jetson | Calibration |
+| `vtol/bht-jetson` | jetson | Neural behavior |
+| `vtol/plotjuggler-host` | host (amd64) | Visualization |
+| `vtol/fastlio-debug-host` | host | RViz debug |
+
+### Running the Production Stack
+
+```bash
+# Full production: PX4 + LIO + neural inference
+./run_scripts/run-jetson-prod-all.sh
+
+# LiDAR-IMU calibration only
+./run_scripts/run-jetson-prod-lio-init-tmux.sh
+
+# Debug on host: PlotJuggler
+./run_scripts/run-host-debug-px4-plotjuggler.sh
+
+# Debug on host: RViz2 LIO
+./run_scripts/run-host-debug-lio-rviz.sh
+```
+
+## Architecture
+
+### System Overview
+
+```
+PX4 FCU -----serial-----> PX4 Connector Container
+                               |  /px4/imu (ROS2 topic)
+Livox LiDAR ---Ethernet---> LIO Container
+                               |  /Odometry (ROS2 topic)
+                               v
+                          BHT Container
+                          /  Neural Gate (C++)  ---> /neural/reset_track
+                          \  Neural Infer (Python) -> /fmu/in/vehicle_acc_rates_setpoint
+```
+
+### Three Production Containers
+
+| Container | Contents | CPU Pinning | Role |
+|-----------|----------|-------------|------|
+| `px4-connector` | Micro-XRCE-DDS Agent, IMU bridge | CPUs 6-7 | PX4 serial → ROS2 IMU; LIO odometry → PX4 VIO |
+| `lio` | FAST-LIO2 + Livox driver | CPUs 2-5 | LiDAR-inertial odometry at 100 Hz |
+| `bht` | neural_gate + neural_inference | Shared | Mode switching + ONNX policy inference at 40 Hz |
+
+### Key Data Flow
+
+1. PX4 FCU publishes IMU via Micro-XRCE-DDS over serial (`/dev/ttyTHS1`, 921600 baud)
+2. PX4 connector publishes `/px4/imu` (sensor_msgs/Imu) to ROS2
+3. Livox driver publishes `/livox/lidar` (PointCloud2) to ROS2
+4. FAST-LIO2 fuses LiDAR + IMU → publishes `/Odometry` (nav_msgs/Odometry) at 100 Hz
+5. PX4 connector bridges `/Odometry` back to PX4 as `/fmu/in/vehicle_visual_odometry`
+6. Neural gate detects RC trigger → publishes `/neural/reset_track` → sends offboard mode command
+7. Neural inference node observes vehicle state, runs ONNX policy, publishes `VehicleAccRatesSetpoint` to PX4
+
+### Coordinate Frame Conventions
+
+| Convention | World Frame | Body Frame | Used By |
+|------------|-------------|------------|---------|
+| PX4 native | NED (North-East-Down) | FRD (Forward-Right-Down) | PX4 FCU, VehicleOdometry, control commands |
+| Training/simulation | ENU (East-North-Up) | FLU (Forward-Left-Up) | Neural network observation space, RL training |
+
+All transforms are in `vtol_behavior_manager/src/neural_inference/neural_inference/utils/math/impl.py`. Quaternion convention: `[w, x, y, z]` (Hamilton), canonicalized with `w > 0`.
+
+## Data Layer
+
+### No Traditional Database
+
+This system is entirely **message-passing** — no SQL/NoSQL databases, no ORM, no migration files. State lives in sensor buffers, ROS2 topic QoS queues, and the ikd-Tree incremental map maintained by FAST-LIO2.
+
+### ROS2 Message Definitions (Data Schema)
+
+The `px4_msgs` package contains 200+ `.msg` files. Key messages:
+
+| Message | Fields | Purpose |
+|---------|--------|---------|
+| `HighresImu` | timestamp, accel[3], gyro[3] (FLU) | PX4 high-rate IMU |
+| `VehicleOdometry` | position[NED], q[FRD→NED], velocity[FRD], covariance | Full state estimate |
+| `VehicleAccRatesSetpoint` | thrust_axis_acc_sp, rates_sp[3] | NN control output |
+| `ManualControlSetpoint` | valid, aux1, buttons | RC input |
+| `OffboardControlMode` | position, velocity, acceleration, attitude, body_rate | Offboard heartbeat |
+
+### IPC Mechanisms
+
+| Mechanism | Protocol | Use Case |
+|-----------|----------|----------|
+| **FastDDS (UDP+SHM)** | ROS2 DDS, localhost | Primary inter-container messaging |
+| **Micro-XRCE-DDS** | Serial UART (921600 baud) | PX4 FCU ↔ Jetson bridge |
+| **Unix DGRAM socket** | `/tmp/imu_bridge.sock` | High-rate IMU: ROS2 container → ROS1 calibration container |
+| **Shared Memory** | FastDDS SHM transport | Zero-copy intra-host DDS (requires `--ipc=host`) |
+
+### File-Based Data
+
+| Storage | Path | Purpose |
+|---------|------|---------|
+| Trajectory CSVs | `src/neural_inference/.../trajectories/fig8.csv` | 26-column reference trajectories |
+| Policy models | `/home/ros/policies/<task>/<revision>/model.onnx` | ONNX neural network policies |
+| Policy metadata | `observations_metadata.yaml`, `action_metadata.yaml` | Feature/action schemas |
+| Calibration results | `Initialization_result.txt` | LiDAR-IMU extrinsics, time offset, gravity, biases |
+| Neural evaluation logs | `/tmp/neural_eval/` | ROS2 bag recordings + Rerun RRD exports |
+
+## Core Logic
+
+### 1. FAST-LIO2 SLAM (linker/lidar_connector/FAST_LIO_ROS2/)
+
+- **Algorithm**: Iterated Error-State Kalman Filter on Manifolds (esekfom)
+- **State**: 18-DOF (position, velocity, orientation, gyro/acc bias, extrinsic)
+- **Pipeline**: LiDAR sync → IMU preintegration → motion undistortion → voxel downsampling → ikd-Tree map → EKF update
+- **Output**: `/Odometry` at 100 Hz, `/cloud_registered`, `/Laser_map` at 1 Hz
+- **Config**: `config/mid360.yaml` (`filter_size_surf=0.5`, `max_iteration=3`, `point_filter_num=3`)
+
+### 2. LI-Init Calibration (linker/LiDAR_IMU_Init/)
+
+- **Algorithm**: Ceres Solver nonlinear least squares, 3-stage optimization
+- **Stage 1**: Rotation-only alignment (angular velocity)
+- **Stage 2**: Joint rotation + gyro bias + time offset
+- **Stage 3**: Translation + acc bias + gravity (centripetal acceleration Jacobian)
+- **Output**: `Initialization_result.txt` — manually copied into FAST-LIO config
+
+### 3. Neural Gate (vtol_behavior_manager/src/neural_gate/)
+
+- **Type**: C++ ROS2 Node, 400 Hz timer
+- **State machine**: POSCTL (idle) → RC trigger edge → reset_track + 300ms warmup → offboard command → OFFBOARD
+- **Safety**: Stick override automatically reverts to POSCTL; heartbeat at 10 Hz
+
+### 4. Neural Inference (vtol_behavior_manager/src/neural_inference/)
+
+- **Type**: Python ROS2 LifecycleNode, 40 Hz inference
+- **Observation features**: ENU position, FLU quaternion, FLU linear velocity, trajectory feedback (position error), trajectory feedforward (40 future waypoints), last action
+- **Action output**: `[thrust_acceleration, roll_rate, pitch_rate, yaw_rate]` → mapped to PX4 `VehicleAccRatesSetpoint`
+- **Backends**: ONNX Runtime (CPU/CUDA), TensorRT (`.fp16.engine`)
+- **Model discovery**: Auto-discovers latest revision by timestamp in `/home/ros/policies/<task>/`
+
+### 5. PX4 Odometry Bridge (linker/px4_connector/)
+
+- Transforms Fast-LIO `/Odometry` (ENU/FLU) → PX4 `VehicleOdometry` (NED/FRD)
+- Handles coordinate transforms and variance remapping
+
+## Interface Layer
+
+### ROS2 Topics (all on `ROS_DOMAIN_ID=30`, `RMW_IMPLEMENTATION=rmw_fastrtps_cpp`)
+
+**PX4 Internal Topics** (via Micro-XRCE-DDS):
+
+| Topic | Type | Direction |
+|-------|------|-----------|
+| `/fmu/out/highres_imu_flu` | HighresImu | PX4 → connector |
+| `/fmu/out/vehicle_odometry` | VehicleOdometry | PX4 → neural |
+| `/fmu/out/vehicle_status_v1` | VehicleStatus | PX4 → gate |
+| `/fmu/out/manual_control_setpoint` | ManualControlSetpoint | PX4 → gate |
+| `/fmu/in/vehicle_visual_odometry` | VehicleOdometry | connector → PX4 |
+| `/fmu/in/offboard_control_mode` | OffboardControlMode | gate → PX4 |
+| `/fmu/in/vehicle_command` | VehicleCommand | gate → PX4 |
+| `/fmu/in/vehicle_acc_rates_setpoint` | VehicleAccRatesSetpoint | neural → PX4 |
+
+**LIO Topics**:
+
+| Topic | Type | Direction |
+|-------|------|-----------|
+| `/livox/lidar` | CustomMsg / PointCloud2 | driver → FAST-LIO |
+| `/px4/imu` | sensor_msgs/Imu | connector → FAST-LIO |
+| `/Odometry` | nav_msgs/Odometry | FAST-LIO → connector, neural |
+| `/cloud_registered` | PointCloud2 | FAST-LIO → debug |
+| `/Laser_map` | PointCloud2 | FAST-LIO → debug |
+
+**Neural Topics**:
+
+| Topic | Type | Direction |
+|-------|------|-----------|
+| `/neural/reset_track` | std_msgs/Bool | gate → infer |
+| `/neural/reference_state` | Float32MultiArray | infer → debug |
+
+### ROS1 Topics (Calibration Only)
+
+- `/mavros/imu/data_raw` — IMU via Unix socket bridge
+- `/livox/lidar`, `/aft_mapped_to_init` — calibration pipeline
+
+### Services
+
+- `/neural_infer_node/change_state` — `lifecycle_msgs/ChangeState` for lifecycle management
+
+### FastDDS Profiles
+
+| Profile | Transport | Use Case |
+|---------|-----------|----------|
+| `fastdds-local.xml` | 127.0.0.1 UDP + SHM | Production (single-machine) |
+| `fastdds-debug.xml` | Multi-interface UDP + SHM | Multi-machine debugging |
+| `fastdds-usb.xml` | Builtin UDP + initial peers | USB link host↔Jetson |
+
+### Debug Topic Convention
+
+From `AGENTS.md`: Debug mirrors use `/debug/` namespace:
+- `/cloud_registered` → `/debug/cloud_registered`
+- `/livox/lidar` → `/debug/livox/lidar`
+
+## Testing
+
+### Frameworks
+
+- **pytest** (primary) — Python tests for neural inference stack
+- **Google Test** (third-party only) — Micro-XRCE-DDS-Agent upstream tests
+
+### Test Organization
+
+```
+vtol_behavior_manager/test/
+├── conftest.py                      # Fixtures, ROS2 mocking, path injection
+├── test_math_utils.py               # Quaternion ops, coordinate transforms
+├── test_observer_base.py            # ObservationSpec, validation
+├── test_observer_px4.py             # Trajectory loading, session management
+├── test_generator_px4_setpoint.py   # Action processing pipeline
+├── test_logger.py                   # Buffered logging
+├── test_discovery.py                # Policy revision scanner
+├── test_model_revision.py           # ModelRevision validation
+├── test_action_metadata.py          # YAML metadata loading
+└── integration/
+    ├── test_policy_provider_compat.py  # Provider-train compatibility
+    └── test_goal_flow.py              # ROS2 message import smoke test
+```
+
+### Test Patterns
+
+- **Dual environment**: `mocked_ros2_env` (session-scoped MagicMock) for unit tests; `ros2_env` (function-scoped) for integration tests requiring real ROS2
+- **Test execution**: Inside BHT Docker container: `python3 -m pytest test/ -v`
+- **No CI pipeline**, no coverage measurement, no E2E/launch tests, no C++ tests for project-authored code
+
+### Key Gaps
+
+- No `make test` target implemented (documented but missing)
+- No CI/CD pipeline
+- No launch_testing or SITL-based E2E tests
+- No performance/benchmark tests
+- Zero project-authored C++ tests (neural_gate, px4_connector)
+
+## Deployment
+
+### Build Strategy: Native Jetson Build via SSH
+
+All Docker images are built natively on the Jetson (arm64), not cross-compiled:
+
+```
+Host (192.168.55.100) --SSH/rsync--> Jetson (192.168.55.1)
+                                       └─ docker build --network=host (native arm64)
+```
+
+Calibration image uses a hybrid 2-stage approach: prep-stage cross-compiled for arm64 on host, shipped as `.tar`, then final native build on Jetson.
+
+### tmux Orchestration
+
+Primary process management via `tmux_utils.sh`. Production session (`jetson-prod`) has 5 windows:
+
+1. `px4-connector` — PX4 connector container
+2. `lio` — FAST-LIO2 container
+3. `infer` — `docker exec` neural inference launch
+4. `shell` — Interactive container shell
+5. `monitor` — Status display
+
+### Syncthing Device Sync
+
+- **Direction**: Host → Device (sendonly → receiveonly)
+- **Auto-revert**: Device reverts local changes every 15s
+- **Exclusions**: `.git/`, `build/`, `__pycache__/`, `*.bag`, `*.db`
+
+### Systemd Services
+
+- `sim-session.service` — Docker Compose simulation lifecycle
+- `syncthing.service` — File synchronization
+- `zuanfeng-syncthing-autorevert.timer` — Auto-revert on device (every 15s)
+
+### Network Convention (Hardcoded)
+
+| Role | IP | Interface |
+|------|-----|-----------|
+| Host | `192.168.55.100` | USB-Ethernet (`enP8p1s0`) |
+| Jetson | `192.168.55.1` | USB bridge (`l4tbr0`) |
+| LiDAR | `192.168.55.x` | Same subnet (auto-discovered via ARP) |
+
+### Docker Run Conventions
+
+All containers use `--network=host --ipc=host`. Key extra flags:
+- `px4-connector`: `--privileged`, `--cpuset-cpus=6,7`
+- `lio`: `--cpuset-cpus=2,3,4,5`
+- `ROS_DOMAIN_ID=30`, `RMW_IMPLEMENTATION=rmw_fastrtps_cpp`
+
+## Dependencies
+
+### Key Runtime Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| ROS2 Humble | — | Core robotics middleware |
+| FastDDS (eProsima) | ROS2 bundled | DDS middleware (`rmw_fastrtps_cpp`) |
+| ONNX Runtime | 1.23.2 | Neural network inference |
+| NumPy | 2.2.6 | Numerical computation |
+| Pydantic | ≥2.0 (2.13.4) | Config/data validation |
+| Hydra | 1.3.2 | Hierarchical configuration |
+| Rerun SDK | 0.32.2 | Post-flight visualization |
+| Fast-LIO2 (esekfom) | — | LiDAR-inertial odometry |
+| Ceres Solver | 2.0.0 | Calibration optimization |
+| PCL | 1.12+ | Point cloud processing |
+| Eigen3 | — | Linear algebra |
+| Livox-SDK2 | master | LiDAR hardware communication |
+| Micro-XRCE-DDS-Agent | latest | PX4 serial bridge |
+| CUDA Python | 12.6/12.9 | TensorRT integration on Jetson |
+
+### Development Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| pytest | 9.0.2 | Testing |
+| ruff | 0.14.0 (pinned) | Linting/formatting |
+| pytest-asyncio | 1.3.0 | Async test support |
+
+### Python Version
+
+- Requires `python ~=3.10.0`
+- Lock file: `vtol_behavior_manager/uv.lock` (managed by `uv`)
+
+### Mirror Configuration
+
+All Dockerfiles use Chinese mirrors for faster APT:
+- Ubuntu ports: `mirrors.ustc.edu.cn`
+- ROS2: `mirrors.ustc.edu.cn/ros2/ubuntu`
+- Simulation Ubuntu: `mirrors.tuna.tsinghua.edu.cn`
+
+## Domain Glossary
+
+### Core Acronyms
+
+| Term | Expansion | Meaning |
+|------|-----------|---------|
+| **VTOL** | Vertical Take-Off and Landing | Aircraft type |
+| **PX4** | — | Open-source flight controller firmware |
+| **LIO** | LiDAR-Inertial Odometry | Real-time pose estimation fusing LiDAR + IMU |
+| **FAST-LIO2** | Fast LiDAR-Inertial Odometry 2 | IEKF-based direct LIO algorithm |
+| **LI-Init** | LiDAR-IMU Initialization | Extrinsic + temporal calibration |
+| **IMU** | Inertial Measurement Unit | Accelerometer + gyroscope |
+| **BHT** | — | Neural behavior container (gate + inference) |
+| **FCU** | Flight Controller Unit | Physical PX4 board |
+| **UXRCE-DDS** | Micro XRCE-DDS | Lightweight serial-to-DDS bridge |
+| **ENU/NED/FLU/FRD** | — | Coordinate frame conventions (see below) |
+
+### Coordinate Frames
+
+- **NED**: World frame (PX4) — X=North, Y=East, Z=Down
+- **ENU**: World frame (training) — X=East, Y=North, Z=Up
+- **FRD**: Body frame (PX4) — X=Forward, Y=Right, Z=Down
+- **FLU**: Body frame (training) — X=Forward, Y=Left, Z=Up
+- Quaternion order: `[w, x, y, z]` (Hamilton), canonicalized `w > 0`
+
+### Project-Specific Terms
+
+| Term | Definition |
+|------|-----------|
+| **Assembly Layer** | Root repo orchestrating submodules into unified pipelines |
+| **Neural Gate** | C++ safety state machine gating NN control behind RC trigger |
+| **Neural Inference** | Python LifecycleNode running ONNX policy at 40 Hz |
+| **LifecycleNode** | ROS2 node with explicit state transitions (Unconfigured→Inactive→Active) |
+| **Offboard Mode** | PX4 mode where external computer provides control setpoints |
+| **POSCTL** | PX4 Position Control mode (pilot + assist) |
+| **Linker** | Sensor fusion submodule linking physical sensors to ROS topics |
+| **Revision** | Timestamped policy model directory with onnx + metadata |
+| **Session** | Trajectory tracking session: anchored on trigger, wraps circularly |
+| **LOTF** | "Line Of The Future" — 26-column trajectory CSV format |
+| **Ship** | Makefile operation: rsync build context to remote Jetson |
+| **Stick Override** | PX4 auto-reverts to POSCTL on pilot stick movement |
+
+### Safety Architecture
+
+1. Two-phase activation: trigger → reset → 300ms warmup → offboard command
+2. Stick override: PX4 auto-reverts to POSCTL on pilot stick movement
+3. Offboard heartbeat at 10 Hz → PX4 fallback if heartbeat stops
+4. Container isolation with `--net=host --ipc=host`
+5. CPU pinning for real-time determinism (PX4=CPUs 6-7, LIO=CPUs 2-5)
+6. `ROS_DOMAIN_ID=30` traffic isolation
+
+## Documentation Index
+
+### Project Documentation
+
+| File | Description | Quality |
+|------|-------------|---------|
+| `README.md` | Root assembly layer — LIO init pipeline, Mermaid diagrams, topic maps, troubleshooting | Excellent |
+| `AGENTS.md` | Project agent guidelines — conventions, naming, ROS2 rules | Excellent |
+| `vtol_behavior_manager/README.md` | Neural behavior architecture, state machine, topic tables | Very Good |
+| `vtol_behavior_manager/AGENTS.md` | Development guide — quaternion conventions, testing, linting | Excellent |
+| `linker/AGENTS.md` | Docker test commands | Good |
+| `vtol_behavior_manager/services/README.md` | Simulation session service architecture | Good |
+| `linker/FAST_LIO_ROS2/TIME_OFFSET_EXPLAINED.md` | Deep dive on time offset parameter | Excellent |
+| `linker/FAST_LIO_ROS2/TOPIC_CHAINS.md` | Complete topic processing chain documentation | Excellent |
+| `linker/FAST_LIO_ROS2/EVIDENCE_CHAIN.md` | Root-cause analysis of "No Effective Points" error | Excellent |
+| `linker/px4_connector/README.md` | PX4 connector scope description | Minimal |
+
+### Documentation Gaps
+
+1. **No Architecture Decision Records (ADRs)** — no rationale for technical decisions
+2. **No contributing guidelines** for this project
+3. **No generated API docs** (Doxygen/Sphinx not configured)
+4. **No training documentation** for neural network models
+5. **No standalone hardware setup guide**
+6. **Minimal inline C++ documentation** in project-authored code
+7. **No `sync_service/` documentation**
