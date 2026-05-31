@@ -29,7 +29,7 @@ Device config: `sync_service/sync_env` (DEVICE_IP, DEVICE_USER, SSH_KEY, etc.)
   - `host-{action}-{feature}.sh` — host-side ops scripts (e.g., `host-sync-policies.sh`)
   - `jetson-{action}-{feature}.sh` — Jetson-side ops scripts (e.g., `jetson-check-cuda-status.sh`)
   - `host-kill-all-containers.sh`, `host-restart-syncthing.sh` — host utility scripts
-- **Orchestration scripts** (e.g., `run-jetson-prod-stack.sh`) may manage multiple services and therefore use a broader naming scope.
+- **Orchestration scripts** (e.g., `run-jetson-prod-all.sh`) may manage multiple services and therefore use a broader naming scope.
 - Prefer `tmux_utils.sh` for process lifecycle management when orchestrating multiple services.
 
 ## ROS2 Workspace Convention
@@ -69,13 +69,7 @@ namespace and preserve the source topic suffix.
 - Do not expose raw local-critical point cloud topics directly as the remote debug contract.
 - Publish mirrored or throttled debug point clouds under `/debug/...`.
 
-Examples:
-
-- `/cloud_registered` -> `/debug/cloud_registered`
-- `/cloud_registered_body` -> `/debug/cloud_registered_body`
-- `/cloud_effected` -> `/debug/cloud_effected`
-- `/livox/lidar` debug mirror -> `/debug/livox/lidar`
-- `/livox/lidar` throttled debug mirror -> `/debug/livox/lidar_throttled`
+Examples: `/cloud_registered` -> `/debug/cloud_registered`, etc.
 
 ## ROS2 Source Convention in Docker Scripts
 
