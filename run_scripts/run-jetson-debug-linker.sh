@@ -34,6 +34,14 @@ fi
 # shellcheck source=/dev/null
 source "$TMUX_UTILS"
 
+# --- Bringup directory support ------------------------------------------------
+BRINGUP_DIR="${SCRIPT_DIR}/../bringup"
+if [[ -d "$BRINGUP_DIR" ]]; then
+  echo "Bringup directory found: $BRINGUP_DIR"
+else
+  BRINGUP_DIR=""
+fi
+
 # --- Configuration -----------------------------------------------------------
 SESSION="jetson-prod-linker"
 PX4_IMAGE="vtol/px4-connector-jetson:latest"
@@ -44,6 +52,9 @@ FASTDDS_PX4_CONFIG="${SCRIPT_DIR}/config/fastdds-debug.xml" #patch now
 INTERFACE="enP8p1s0"
 LIVOX_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/livox_mid360.json"
 FAST_LIO_CONFIG_TEMPLATE="${SCRIPT_DIR}/config/fastlio_mid360.yaml"
+LIO_ENTRYPOINT="${SCRIPT_DIR}/config/lio-entrypoint.sh"
+PX4_ENTRYPOINT="${SCRIPT_DIR}/config/px4-entrypoint.sh"
+UXRCE_AGENT_REFS="${SCRIPT_DIR}/config/uxrce-agent-local.refs"
 LIVOX_CONFIG_CONTAINER="${ROS2_WS_DIR}/install/livox_ros_driver2/share/livox_ros_driver2/config/MID360_config.json"
 FAST_LIO_CONFIG_CONTAINER="${ROS2_WS_DIR}/install/fast_lio/share/fast_lio/config/mid360.yaml"
 
@@ -167,14 +178,24 @@ fn_tmux_session_safe_start "$SESSION"
 echo "Starting PX4 connector..."
 fn_tmux_window_rename "$SESSION" "main" "px4-connector"
 
-px4_connector_cmd="docker run --rm --name px4-connector-jetson --net=host --ipc=host --privileged -e ROS_DOMAIN_ID=30 --cpuset-cpus=6,7 -e XRCE_DOMAIN_ID_OVERRIDE=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e WS_DIR=${ROS2_WS_DIR} -e MICRO_XRCE_DEVICE=${MICRO_XRCE_DEVICE:-/dev/ttyTHS1} -e MICRO_XRCE_BAUDRATE=${MICRO_XRCE_BAUDRATE:-921600} -e OUTPUT_MODE=${OUTPUT_MODE:-topic} -e IMU_OUTPUT_TOPIC=${IMU_OUTPUT_TOPIC:-/px4/imu} -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${FASTDDS_PX4_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${SCRIPT_DIR}/config/px4-entrypoint.sh:/entrypoint.sh:ro --entrypoint bash ${PX4_IMAGE} /entrypoint.sh"
+PX4_ENTRYPOINT_SRC="${PX4_ENTRYPOINT}"
+if [[ -n "$BRINGUP_DIR" ]] && [[ -f "${BRINGUP_DIR}/entrypoint/px4-entrypoint.sh" ]]; then
+  PX4_ENTRYPOINT_SRC="${BRINGUP_DIR}/entrypoint/px4-entrypoint.sh"
+fi
+
+px4_connector_cmd="docker run --rm --name px4-connector-jetson --net=host --ipc=host --privileged -e ROS_DOMAIN_ID=30 --cpuset-cpus=6,7 -e XRCE_DOMAIN_ID_OVERRIDE=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e WS_DIR=${ROS2_WS_DIR} -e MICRO_XRCE_DEVICE=${MICRO_XRCE_DEVICE:-/dev/ttyTHS1} -e MICRO_XRCE_BAUDRATE=${MICRO_XRCE_BAUDRATE:-921600} -e OUTPUT_MODE=${OUTPUT_MODE:-topic} -e IMU_OUTPUT_TOPIC=${IMU_OUTPUT_TOPIC:-/px4/imu} -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${FASTDDS_PX4_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${PX4_ENTRYPOINT_SRC}:/entrypoint.sh:ro --entrypoint bash ${PX4_IMAGE} /entrypoint.sh"
 fn_tmux_pane_run "$SESSION" "px4-connector" "" "$px4_connector_cmd"
 
 # --- Window 2: LIO (Livox + FAST-LIO) ---------------------------------------
 echo "Starting LIO container..."
 fn_tmux_window_new "$SESSION" "lio"
 
-lio_cmd="docker run --rm --name lio-jetson --net=host --ipc=host --cpuset-cpus=2,3,4,5 -e ROS_DOMAIN_ID=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e WS_DIR=${ROS2_WS_DIR} -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${RUNTIME_CONFIG_DIR}/livox_mid360.json:${LIVOX_CONFIG_CONTAINER}:ro -v ${RUNTIME_CONFIG_DIR}/fastlio_mid360.yaml:${FAST_LIO_CONFIG_CONTAINER}:ro -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${SCRIPT_DIR}/config/lio-entrypoint.sh:/entrypoint.sh:ro --entrypoint '' ${LIO_IMAGE} bash /entrypoint.sh"
+LIO_ENTRYPOINT_SRC="${LIO_ENTRYPOINT}"
+if [[ -n "$BRINGUP_DIR" ]] && [[ -f "${BRINGUP_DIR}/entrypoint/lio-entrypoint.sh" ]]; then
+  LIO_ENTRYPOINT_SRC="${BRINGUP_DIR}/entrypoint/lio-entrypoint.sh"
+fi
+
+lio_cmd="docker run --rm --name lio-jetson --net=host --ipc=host --cpuset-cpus=2,3,4,5 -e ROS_DOMAIN_ID=30 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp -e WS_DIR=${ROS2_WS_DIR} -e FASTRTPS_DEFAULT_PROFILES_FILE=/etc/fastdds/fastdds.xml -v ${RUNTIME_CONFIG_DIR}/livox_mid360.json:${LIVOX_CONFIG_CONTAINER}:ro -v ${RUNTIME_CONFIG_DIR}/fastlio_mid360.yaml:${FAST_LIO_CONFIG_CONTAINER}:ro -v ${FASTDDS_CONFIG}:/etc/fastdds/fastdds.xml:ro -v ${LIO_ENTRYPOINT_SRC}:/entrypoint.sh:ro --entrypoint '' ${LIO_IMAGE} bash /entrypoint.sh"
 fn_tmux_pane_run "$SESSION" "lio" "" "$lio_cmd"
 
 # --- Window 3: Monitor -------------------------------------------------------
@@ -193,7 +214,7 @@ echo "Session: jetson-prod-linker"
 echo ""
 echo "Data flow:"
 echo "  PX4 FMU → PX4 connector → /px4/imu"
-echo "  Livox LiDAR → livox_ros_driver2 → /livox/lidar"
+echo "  Livox LiDAR → livox_ros_driver2 → /livox/lidar, /livox/imu"
 echo "  /px4/imu + /livox/lidar → FAST-LIO → /Odometry"
 echo "  /Odometry → PX4 connector → /fmu/in/vehicle_visual_odometry"
 echo ""
@@ -210,11 +231,11 @@ while true; do
     echo "[✗] /px4/imu not available"
   fi
 
-  # Check /livox/lidar
-  if ros2 topic list 2>/dev/null | grep -q "/livox/lidar"; then
-    echo "[✓] /livox/lidar available"
+  # Check /livox/imu
+  if ros2 topic list 2>/dev/null | grep -q "/livox/imu"; then
+    echo "[✓] /livox/imu available"
   else
-    echo "[✗] /livox/lidar not available"
+    echo "[✗] /livox/imu not available"
   fi
 
   # Check /Odometry

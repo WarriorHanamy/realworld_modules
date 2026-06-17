@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <transport_descriptors>
+    <transport_descriptor>
+      <transport_id>udp_localhost</transport_id>
+      <type>UDPv4</type>
+      <interfaceWhiteList>
+        <address>127.0.0.1</address>
+      </interfaceWhiteList>
+    </transport_descriptor>
+
+    <transport_descriptor>
+      <transport_id>shm_transport</transport_id>
+      <type>SHM</type>
+    </transport_descriptor>
+  </transport_descriptors>
+
+  <participant profile_name="px4_participant">
+    <rtps>
+      <name>px4_participant</name>
+      <defaultUnicastLocatorList>
+        <locator>
+          <udpv4>
+            <address>127.0.0.1</address>
+          </udpv4>
+        </locator>
+      </defaultUnicastLocatorList>
+
+      <userTransports>
+        <transport_id>udp_localhost</transport_id>
+        <transport_id>shm_transport</transport_id>
+      </userTransports>
+      <useBuiltinTransports>false</useBuiltinTransports>
+
+      <builtin>
+        <metatrafficUnicastLocatorList>
+          <locator>
+            <udpv4>
+              <address>127.0.0.1</address>
+            </udpv4>
+          </locator>
+        </metatrafficUnicastLocatorList>
+
+        <initialPeersList>
+          <locator><udpv4><address>127.0.0.1</address><port>14910</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14912</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14914</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14916</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14918</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14920</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14922</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14924</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14926</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14928</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14930</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14932</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14934</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14936</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14938</port></udpv4></locator>
+          <locator><udpv4><address>127.0.0.1</address><port>14940</port></udpv4></locator>
+        </initialPeersList>
+      </builtin>
+    </rtps>
+  </participant>
+</profiles>
