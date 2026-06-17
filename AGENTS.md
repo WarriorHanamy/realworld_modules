@@ -1,5 +1,9 @@
 # Project Agent Guidelines
 
+## Device Info
+
+- **jw9** (192.168.55.1): L4T R35.5.0 (JetPack 5.1.3, aarch64)
+
 ## Remote Execution
 
 This project uses Syncthing for bidirectional sync between host and Jetson device.
