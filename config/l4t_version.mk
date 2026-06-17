@@ -1,1 +1,1 @@
-L4T_VERSION := r35.5.0
+L4T_VERSION := r35.4.1

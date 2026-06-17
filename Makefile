@@ -11,13 +11,13 @@
 
 -include config/l4t_version.mk
 
-L4T_VERSION ?= r35.5.0
+L4T_VERSION ?= r35.4.1
 
 # --- Branch & base image mapping per L4T version ---
-ifeq ($(L4T_VERSION),r35.5.0)
+ifeq ($(L4T_VERSION),r35.4.1)
   LINKER_BRANCH  := r35
   BHT_BRANCH     := r35
-  L4T_BASE_IMAGE := nvcr.io/nvidia/l4t-base
+  L4T_BASE_IMAGE := nvcr.io/nvidia/l4t-jetpack
   BHT_BASE_IMAGE := nvcr.io/nvidia/l4t-jetpack
 else ifeq ($(L4T_VERSION),r36.2.0)
   LINKER_BRANCH  := main

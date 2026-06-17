@@ -2,7 +2,7 @@
 
 Configure a {DEVICE} Jetson device with core utilities: initial SSH access via IP,
 mDNS/avahi-daemon, SSH key deployment, WiFi lock to Diff\* SSID, NTP via wlan0,
-tmux, bash, LiDAR wired interface, Livox SDK, and uxrce_dds serial port.
+tmux, bash, LiDAR wired interface, and uxrce_dds serial port.
 
 ## Prerequisites
 
@@ -86,13 +86,7 @@ ssh nv@192.168.55.1 "echo 'set -g mouse on' > ~/.tmux.conf && sudo chsh -s /bin/
 ssh nv@192.168.55.1 "echo 'cd /home/nv/realworld_modules' >> ~/.profile"
 ```
 
-### 5. Install Livox SDK2
-
-```bash
-ssh nv@192.168.55.1 "bash -lc 'cd /home/nv/realworld_modules && bash .agents/skills/setup-device/livox_sdk_install.sh'"
-```
-
-### 6. Configure uxrce_dds serial port
+### 5. Configure uxrce_dds serial port
 
 PX4 FCU connects via `/dev/ttyTHS1` at 921600 baud. Ensure the user has
 permission and the port exists:
@@ -103,7 +97,7 @@ ssh nv@192.168.55.1 "sudo usermod -aG dialout nv && ls -l /dev/ttyTHS1"
 
 Expected: `/dev/ttyTHS1` is a character device, user `nv` in `dialout` group.
 
-### 7. Sync code to device
+### 6. Sync code to device
 
 ```bash
 uv run integration sync
@@ -118,7 +112,6 @@ uv run integration sync
 | LiDAR eth0 | `ssh nv@192.168.55.1 "ip addr show eth0 \| grep 'inet '"` | `192.168.2.50/24` |
 | uxrce_dds port | `ssh nv@192.168.55.1 "ls -l /dev/ttyTHS1"` | crw-rw---- |
 | NTP | `ssh nv@192.168.55.1 "timedatectl show --property=NTPSynchronized --value"` | `yes` |
-| Livox SDK | `ssh nv@192.168.55.1 "grep 'kLivoxLidarTypeMid360s' /usr/local/include/livox_lidar_def.h"` | `kLivoxLidarTypeMid360s = 35` |
 | Workspace | `ssh nv@192.168.55.1 "ls ~/realworld_modules/.git"` | exists |
 
 ## Troubleshooting
@@ -126,7 +119,7 @@ uv run integration sync
 | Symptom | Likely Cause | Fix |
 |---------|-------------|------|
 | `nv-{DEVICE}.local` not resolving | avahi-daemon not running | `sudo systemctl enable --now avahi-daemon` on device |
-| `bind failed` on Livox SDK | eth0 missing 192.168.2.50 | `sudo nmcli con up Livox-LiDAR` |
+| `bind failed` / `Create detection socket failed` | eth0 missing 192.168.2.50 or stale livox process | `sudo nmcli con up Livox-LiDAR`; `pkill -f livox 2>/dev/null` |
 | `/dev/ttyTHS1` missing | UART not enabled or TX2 pin conflict | `sudo ls /dev/ttyTH*` to confirm; check L4T device tree |
 | dialout group not effective | Need re-login | `newgrp dialout` or reboot |
 | NTP not syncing | Route missing for NTP IPs | Check `ip route get 185.125.190.58` |
