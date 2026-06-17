@@ -1,101 +1,74 @@
----
-name: docker-naming
-description: Consistent naming conventions for Docker images, containers, tmux sessions, SSH hosts, and workspace paths across c5pro branches. Use when building images, naming containers, writing tmux scripts, or configuring deployment infrastructure.
----
-
 # Docker Image & Container Naming
 
 All resource names derive from `{branch-norm}` — the branch name with `/`
-replaced by `-`. The device ID (`{drone}`) only appears in the mDNS hostname
-(`nv-{drone}.local`); it is **not** a separate prefix in resource names.
-
-| Variable        | Meaning                    | Example                              |
-| --------------- | -------------------------- | ------------------------------------ |
-| `{branch-norm}` | Branch name, `/` → `-`     | `ros1-yopo`, `chirp`, `{drone}-chirp`   |
+replaced by `-`. For production: `{branch-norm}=realworld-modules`.
 
 ## Image Naming
 
-Pattern: `c5pro/ros1/{branch-norm}`
+Pattern: `vtol/{service}-{platform}:latest`
 
-| Type   | Pattern                              | Example                       |
-| ------ | ------------------------------------ | ----------------------------- |
-| Base   | `c5pro/ros1/{branch-norm}`           | `c5pro/ros1/ros1-yopo`        |
-| Base + | can have suffix `-debug`, `-jetson`  | `c5pro/ros1/ros1-yopo-jetson` |
+| Image | Platform | Service |
+|-------|----------|---------|
+| `vtol/l4t-ros2-base-jetson` | jetson (arm64) | Shared ROS2 base |
+| `vtol/px4-connector-jetson` | jetson | PX4 uxrce_dds bridge |
+| `vtol/lio-jetson` | jetson | FAST-LIO2 SLAM |
+| `vtol/calib-lidar-imu-init-jetson` | jetson | LiDAR-IMU calibration |
+| `vtol/bht-jetson` | jetson | Neural behavior |
+| `vtol/plotjuggler-host` | host (amd64) | PlotJuggler viz |
+| `vtol/fastlio-debug-host` | host (amd64) | RViz debug |
 
 To build:
 
 ```bash
-docker build -t c5pro/ros1/ros1-yopo -f docker/deploy.Dockerfile .
+# On Jetson
+docker build -t vtol/lio-jetson -f dockerfiles/lio.jetson.Dockerfile .
+
+# On host
+docker build -t vtol/fastlio-debug-host -f dockerfiles/fastlio-debug.host.Dockerfile .
 ```
 
 ## Container Naming
 
-Pattern: `{branch-norm}-ros1-{purpose}-{stage}`
+Pattern: `vtol-{service}-{stage}` or `{branch-norm}-{service}-{stage}`
 
-| Part        | Required? | Typical Values                  |
-| ----------- | --------- | ------------------------------- |
-| `{purpose}` | always    | `runtime`, `jetson`             |
-| `{stage}`   | always    | `prod`, `test`, `debug`, `ephemeral` |
-
-| Example                                      | Stage         |
-| -------------------------------------------- | ------------- |
-| `ros1-yopo-ros1-runtime-prod`                | production    |
-| `ros1-yopo-ros1-runtime-test`                | CI / unit test |
-| `ros1-yopo-ros1-runtime-debug`               | GUI / manual  |
-| `ros1-yopo-ros1-jetson-test`                 | Jetson test   |
-
-Declared via compose:
-
-```yaml
-container_name: ${DOCKER_CONTAINER:-ros1-yopo-ros1-runtime}-test
-```
+| Example | Stage |
+|---------|-------|
+| `vtol-lio-prod` | production |
+| `vtol-px4-connector-debug` | debug (manual test) |
+| `vtol-plotjuggler-test` | CI / unit test |
 
 ## Tmux Session Naming
 
-Pattern: `{branch-norm}-{name}`
+Pattern: `vtol-{purpose}`
 
-| Name        | Example Session Name       |
-| ----------- | -------------------------- |
-| Bringup     | `ros1-yopo-bringup`        |
-| YOPO debug  | `ros1-yopo-yopo-debug`     |
-| Other tool  | `ros1-yopo-{tool-name}`    |
+| Session | Purpose |
+|---------|---------|
+| `vtol-bringup` | Full system bringup |
+| `vtol-lio-debug` | FAST-LIO2 debug |
+| `vtol-calib` | Calibration |
 
-Session discovery for cleanup (`kill.sh`):
+Cleanup:
 
 ```bash
-tmux list-sessions -F '#{session_name}' | grep "ros1-yopo-"
+tmux list-sessions -F '#{session_name}' | grep "^vtol-"
 ```
 
 ## SSH Host
 
-Pattern: `nv@nv-{drone}.local`
-
-| Drone | SSH Target          |
-| ----- | ------------------- |
-| `{drone}` | `nv@192.168.55.1`   |
+Pattern: `nv@nv-{drone}.local` or `nv@192.168.55.1` (USB link).
 
 ## Workspace Path
 
 Pattern: `/home/nv/{branch-norm}`
 
-| Branch        | Remote Path                  |
-| ------------- | ---------------------------- |
-| ros1-yopo     | `/home/nv/ros1-yopo`         |
-
-## Real Examples
-
-| Branch        | Image                         | Container                                | Tmux Session           | SSH                 | Path                       |
-| ------------- | ----------------------------- | ---------------------------------------- | ---------------------- | ------------------- | -------------------------- |
-| `ros1-yopo`   | `c5pro/ros1/ros1-yopo`        | `ros1-yopo-ros1-runtime-test`            | `ros1-yopo-bringup`    | `nv@192.168.55.1` | `/home/nv/ros1-yopo`       |
+| Branch | Remote Path |
+|--------|-------------|
+| `realworld_modules` | `/home/nv/realworld_modules` |
 
 ## Environment Variables
 
-| Variable         | Default                      | Purpose                                      |
-| ---------------- | ---------------------------- | -------------------------------------------- |
-| `DOCKER_IMAGE`     | `c5pro/ros1/ros1-yopo`        | Override image tag for local dev             |
-| `DOCKER_CONTAINER` | `ros1-yopo-ros1-runtime`      | Override container base name (stage appended) |
-
-## Cross-Reference
-
-- `ci-cd` — container lifecycle (which stage runs what)
-- `writing-tmux` — tmux session creation and cleanup scripts
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `DOCKER_IMAGE` | `vtol/lio-jetson` | Override image tag |
+| `DOCKER_CONTAINER` | `vtol-lio` | Override container base name |
+| `ROS_DOMAIN_ID` | `30` | ROS2 domain isolation |

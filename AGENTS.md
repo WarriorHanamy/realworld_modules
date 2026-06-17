@@ -89,3 +89,12 @@ docker run --rm -it IMAGE \
 docker exec -it CONTAINER \
   bash -c 'source /opt/ros/humble/setup.bash && source /root/ws/install/setup.bash && exec bash'
 ```
+
+## Agent Skills
+
+`.agents/skills/` contains task-specific AI assistant skills for this assembly
+layer. Each skill targets a Docker container, middleware concern, or device
+operation.
+
+See `.agents/skills/README.md` for the full index with category breakdown,
+scoped targets, and per-skill descriptions.

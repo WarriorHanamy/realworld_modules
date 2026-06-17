@@ -1,150 +1,87 @@
----
-name: docker-rviz-debug
-description: Debug Docker container RViz when connecting to remote Jetson ROS master. Covers mDNS, X11, ROS_HOSTNAME, GPU passthrough, YAML quoting, and PATH issues.
----
-
 # docker-rviz-debug
 
-## Purpose
+When running `uv run viz lio`, the Docker RViz2 container uses
+`osrf/ros:humble-desktop-full` to connect to a remote Jetson ROS2 system.
+Six non-obvious failure modes.
 
-When running `uv run viz yopo`, the Docker RViz container (`deploy.compose.rviz.yml`)
-uses `osrf/ros:noetic-desktop-full` to connect to a remote Jetson ROS master. Six
-non-obvious failure modes can prevent RViz from starting, connecting, or rendering.
-
-## Checklist
-
-### 1. mDNS — .local names don't resolve in container
+## 1. mDNS — .local names don't resolve in container
 
 | Symptom | Check | Fix |
-|---|---|---|
-| `WARN[0000] The "ROS_MASTER_URI" variable is not set.`<br>`rostopic list` timeout or empty | `docker exec <ctr> bash -c 'echo $ROS_MASTER_URI'` | Resolve hostname on host side before `docker compose up`, pass IP as env var |
+|---------|-------|-----|
+| `ROS_DISCOVERY_SERVER / ROS_AUTOMATIC_DISCOVERY_RANGE` unset; `ros2 topic list` empty | `docker exec <ctr> bash -c 'echo $ROS_DOMAIN_ID'` | Resolve IP on host before launch, pass as env var |
 
-```python
-# c5pro/cli/viz.py:112-121
-jetson_ip = REMOTE_HOST
-compose_env = _env()
-compose_env["ROS_MASTER_URI"] = f"http://{jetson_ip}:11311"
-compose_env["JETSON_IP"] = jetson_ip
-```
+The compose file uses `extra_hosts` to map the Jetson hostname:
 
 ```yaml
-# docker/deploy.compose.rviz.yml:21-22
 extra_hosts:
   - "nv:${JETSON_IP}"
 ```
 
-**Diagnostic:**
-```bash
-docker exec ros1-yopo-ros1-runtime-rviz \
-  bash -c 'echo $ROS_MASTER_URI'
-docker exec ros1-yopo-ros1-runtime-rviz \
-  bash -c 'rostopic list 2>&1'
-```
-
----
-
-### 2. ROS_HOSTNAME=localhost blocks remote connections
+## 2. ROS_LOCALHOST_ONLY blocks remote discovery
 
 | Symptom | Check | Fix |
-|---|---|---|
-| `ROS_HOSTNAME / ROS_IP is set to only allow local connections, so a requested connection to 'nv' is being rejected.` | `docker exec <ctr> bash -c 'echo $ROS_HOSTNAME'` | Remove `ROS_HOSTNAME` from compose environment |
+|---------|-------|-----|
+| Topics visible on Jetson but not in host container | `docker exec <ctr> bash -c 'echo $ROS_LOCALHOST_ONLY'` | Ensure `ROS_LOCALHOST_ONLY` is NOT set or set to `0` |
 
-```
-# docker/deploy.compose.rviz.yml — DON'T set ROS_HOSTNAME
-# Delete or comment out:
-#   - "ROS_HOSTNAME=${ROS_HOSTNAME:-localhost}"
-```
+With `network_mode: host`, ROS2 auto-discovers interfaces. `ROS_LOCALHOST_ONLY=1`
+restricts to loopback.
 
-With `network_mode: host`, ROS auto-detects the network. `localhost` explicitly
-prevents outbound connections to the Jetson.
-
----
-
-### 3. X11 — root user not authorized
+## 3. X11 — root user not authorized
 
 | Symptom | Check | Fix |
-|---|---|---|
-| `Invalid MIT-MAGIC-COOKIE-1 key`<br>`qt.qpa.xcb: could not connect to display` | `xhost` on host | Call `_authorize_docker_x11()` before `docker compose up` |
+|---------|-------|-----|
+| `Invalid MIT-MAGIC-COOKIE-1 key` / `could not connect to display` | `xhost` on host | Call `xhost +SI:localuser:root` before `docker compose up` |
 
-```python
-# c5pro/cli/viz.py:123-124
-_authorize_docker_x11("[c5pro]")
-```
-
-This runs `xhost +SI:localuser:root` to allow the container's root user.
-
----
-
-### 4. rviz not found in PATH
+## 4. rviz2 not found in PATH
 
 | Symptom | Check | Fix |
-|---|---|---|
-| `exec: "rviz": executable file not found in $PATH` | `docker exec <ctr> which rviz` | Source ROS setup.bash before running rviz |
+|---------|-------|-----|
+| `exec: "rviz2": executable file not found` | `docker exec <ctr> which rviz2` | Source ROS2 setup.bash: `source /opt/ros/humble/setup.bash && rviz2` |
 
-```python
-# c5pro/cli/viz.py:180-189
-subprocess.run([
-    _docker(), "exec", "-it", container, "bash", "-c",
-    "source /opt/ros/noetic/setup.bash && rviz -d /rviz_configs/yopo_debug.rviz",
-])
-```
+`docker exec` does NOT source the entrypoint environment.
 
-`docker exec` creates a new process — it does NOT source the entrypoint's
-environment.
-
----
-
-### 5. YAML colon parsing in unquoted env values
+## 5. YAML colon parsing in env values
 
 | Symptom | Check | Fix |
-|---|---|---|
-| Env var in container is truncated (e.g. `ROS_MASTER_URI` blank) | `docker exec <ctr> bash -c 'echo $ROS_MASTER_URI'` | Quote all `environment:` values in compose |
+|---------|-------|-----|
+| Env var truncated in container | `docker exec <ctr> bash -c 'echo $FASTDDS_DEFAULT_PROFILES_FILE'` | Quote all `environment:` values in compose |
 
 ```yaml
-# docker/deploy.compose.rviz.yml — YES:
-    - "ROS_MASTER_URI=${ROS_MASTER_URI:-http://192.168.55.1:11311}"
-    - "NVIDIA_VISIBLE_DEVICES=all"
+# YES:
+    - "FASTDDS_DEFAULT_PROFILES_FILE=/config/fastdds-debug.xml"
     - "DISPLAY=${DISPLAY:-}"
 
-# — NO (unquoted, colon may break YAML parser):
-    - ROS_MASTER_URI=${ROS_MASTER_URI:-http://192.168.55.1:11311}
+# NO (colon may break YAML parser):
+    - FASTDDS_DEFAULT_PROFILES_FILE=/config/fastdds-debug.xml
 ```
 
----
-
-### 6. NVIDIA GPU not available (llvmpipe fallback)
+## 6. NVIDIA GPU not available (llvmpipe fallback)
 
 | Symptom | Check | Fix |
-|---|---|---|
-| `libGL error: failed to load driver: nvidia-drm`<br>OpenGL device: `llvmpipe` | `docker exec <ctr> bash -c 'glxinfo 2>/dev/null \| grep "OpenGL renderer"'` | Add `runtime: nvidia` + env vars |
+|---------|-------|-----|
+| `libGL error: failed to load driver: nvidia-drm` | `docker exec <ctr> bash -c 'glxinfo 2>/dev/null \| grep "OpenGL renderer"'` | Add `runtime: nvidia` + `NVIDIA_VISIBLE_DEVICES=all` + `NVIDIA_DRIVER_CAPABILITIES=all` |
 
-```yaml
-# docker/deploy.compose.rviz.yml:20,25-26
-    runtime: nvidia
-    environment:
-      - "NVIDIA_VISIBLE_DEVICES=all"
-      - "NVIDIA_DRIVER_CAPABILITIES=all"
-```
+Requires `nvidia-container-toolkit` on the host. Verify:
 
-Requires `nvidia-container-toolkit` installed on the host. For AMD/iGPU,
-mount `/dev/dri:/dev/dri` instead.
-
-**Verify GPU passthrough:**
 ```bash
-docker exec ros1-yopo-ros1-runtime-rviz \
-  bash -c 'nvidia-smi 2>/dev/null || echo "No nvidia-smi in container (non-NVIDIA image)"'
+docker exec vtol-fastlio-debug-host bash -c 'nvidia-smi 2>/dev/null || echo "No nvidia-smi"'
 ```
+
+## 7. FastDDS profile mismatch
+
+| Symptom | Check | Fix |
+|---------|-------|-----|
+| Host container sees no Jetson topics | `docker exec <ctr> bash -c 'echo $FASTDDS_DEFAULT_PROFILES_FILE'` | Mount `fastdds-debug.xml` (not `fastdds-local.xml`) and set env var |
 
 ## Reference: Healthy State
 
-A working `uv run viz yopo` produces no GL errors, no ROS_HOSTNAME warnings,
-and `rostopic list` detects topics within 3-15 seconds.
+A working `uv run viz lio` produces no GL errors, no DDS warnings, and
+`ros2 topic list` detects Jetson topics within 5-10 seconds.
 
 ## Related
 
 | Resource | Link |
-|---|---|
-| AGENTS.md §5.6 | Docker rviz DNS diagnostic commands |
-| `c5pro/cli/viz.py` | Python orchestrator |
-| `docker/deploy.compose.rviz.yml` | Compose file |
-| `deploy-side/tmux_scripts/host_yopo_debug_bringup.sh` | Shell equivalent |
+|----------|------|
+| AGENTS.md | ROS2 Docker source convention |
+| `run_scripts/run-host-debug-lio-rviz.sh` | RViz host script |
+| `run_scripts/config/fastdds-debug.xml` | Multi-machine DDS profile |
