@@ -14,21 +14,28 @@
 L4T_VERSION ?= r35.4.1
 
 # --- Branch & base image mapping per L4T version ---
+# Linker containers (LIO, PX4) don't need CUDA; BHT needs CUDA for neural inference
 ifeq ($(L4T_VERSION),r35.4.1)
-  LINKER_BRANCH  := r35
-  BHT_BRANCH     := r35
-  L4T_BASE_IMAGE := nvcr.io/nvidia/l4t-jetpack
-  BHT_BASE_IMAGE := nvcr.io/nvidia/l4t-jetpack
+  LINKER_BRANCH      := r35
+  BHT_BRANCH         := r35
+  LINKER_JETPACK_TAG := r36.4.0
+  BHT_JETPACK_TAG    := r35.4.1
+  LINKER_BASE_IMAGE  := nvcr.io/nvidia/l4t-jetpack
+  BHT_BASE_IMAGE     := nvcr.io/nvidia/l4t-jetpack
 else ifeq ($(L4T_VERSION),r36.2.0)
-  LINKER_BRANCH  := main
-  BHT_BRANCH     := track
-  L4T_BASE_IMAGE := nvcr.io/nvidia/l4t-base
-  BHT_BASE_IMAGE := nvcr.io/nvidia/l4t-jetpack
+  LINKER_BRANCH      := main
+  BHT_BRANCH         := track
+  LINKER_JETPACK_TAG := r36.2.0
+  BHT_JETPACK_TAG    := r36.4.0
+  LINKER_BASE_IMAGE  := nvcr.io/nvidia/l4t-base
+  BHT_BASE_IMAGE     := nvcr.io/nvidia/l4t-jetpack
 else ifeq ($(L4T_VERSION),r36.4.0)
-  LINKER_BRANCH  := main
-  BHT_BRANCH     := track
-  L4T_BASE_IMAGE := nvcr.io/nvidia/l4t-base
-  BHT_BASE_IMAGE := nvcr.io/nvidia/l4t-jetpack
+  LINKER_BRANCH      := main
+  BHT_BRANCH         := track
+  LINKER_JETPACK_TAG := r36.4.0
+  BHT_JETPACK_TAG    := r36.4.0
+  LINKER_BASE_IMAGE  := nvcr.io/nvidia/l4t-base
+  BHT_BASE_IMAGE     := nvcr.io/nvidia/l4t-jetpack
 endif
 
 export L4T_VERSION
@@ -61,24 +68,24 @@ submodule-update:
 
 docker-build-linker-base:
 	$(MAKE) -C $(LINKER_DIR) docker-build-base-jetson \
-	  JETPACK_TAG=$(L4T_VERSION) \
-	  L4T_BASE_IMAGE=$(L4T_BASE_IMAGE)
+	  JETPACK_TAG=$(LINKER_JETPACK_TAG) \
+	  L4T_BASE_IMAGE=$(LINKER_BASE_IMAGE)
 
 docker-build-linker-lio:
 	$(MAKE) -C $(LINKER_DIR) docker-build-lio-jetson \
-	  JETPACK_TAG=$(L4T_VERSION) \
-	  L4T_BASE_IMAGE=$(L4T_BASE_IMAGE)
+	  JETPACK_TAG=$(LINKER_JETPACK_TAG) \
+	  L4T_BASE_IMAGE=$(LINKER_BASE_IMAGE)
 
 docker-build-linker-px4:
 	$(MAKE) -C $(LINKER_DIR) docker-build-px4-connector-jetson \
-	  JETPACK_TAG=$(L4T_VERSION) \
-	  L4T_BASE_IMAGE=$(L4T_BASE_IMAGE)
+	  JETPACK_TAG=$(LINKER_JETPACK_TAG) \
+	  L4T_BASE_IMAGE=$(LINKER_BASE_IMAGE)
 
 docker-build-linker: docker-build-linker-base docker-build-linker-lio docker-build-linker-px4
 
 docker-build-bht:
 	$(MAKE) -C $(BHT_DIR) docker-build-bht-jetson \
-	  JETPACK_TAG=$(L4T_VERSION) \
+	  JETPACK_TAG=$(BHT_JETPACK_TAG) \
 	  L4T_BASE_IMAGE=$(BHT_BASE_IMAGE)
 
 docker-build-all: docker-build-linker docker-build-bht
@@ -88,11 +95,11 @@ docker-build-all: docker-build-linker docker-build-bht
 # =============================================================================
 
 info:
-	@echo "L4T_VERSION        = $(L4T_VERSION)"
-	@echo "linker branch      = $(LINKER_BRANCH)"
-	@echo "bht   branch       = $(BHT_BRANCH)"
-	@echo "linker base image  = $(L4T_BASE_IMAGE)"
-	@echo "bht   base image   = $(BHT_BASE_IMAGE)"
+	@echo "L4T_VERSION            = $(L4T_VERSION)"
+	@echo "linker branch          = $(LINKER_BRANCH)"
+	@echo "bht   branch           = $(BHT_BRANCH)"
+	@echo "linker base image      = $(LINKER_BASE_IMAGE):$(LINKER_JETPACK_TAG)"
+	@echo "bht   base image       = $(BHT_BASE_IMAGE):$(BHT_JETPACK_TAG)"
 	@echo ""
 	@echo "Targets:"
 	@echo "  make submodule-update      sync submodules to version branch"
